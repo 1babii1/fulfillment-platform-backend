@@ -1,0 +1,45 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+out/
+artifacts/
+TestResults/
+coverage/
+
+# Local tooling
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Node and frontend tooling
+node_modules/
+.next/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+appsettings.Development.json
+appsettings.Production.json
+appsettings.Local.json
+secrets/
+*.pem
+*.key
+*.pfx
+*.p12
+*.kubeconfig
+
+# Infrastructure state and inventories
+*.tfstate
+*.tfstate.*
+.terraform/
+inventory/hosts.yml
+inventory/hosts.ini
+ansible/inventory/hosts.yml
+
+# OS files
+.DS_Store
+Thumbs.db
