@@ -1,5 +1,8 @@
 <Solution>
   <Folder Name="/src/" />
+  <Folder Name="/src/Api/">
+    <Project Path="src/Api/Fulfillment.Api/Fulfillment.Api.csproj" />
+  </Folder>
   <Folder Name="/src/Catalog/">
     <Project Path="src/Catalog/Catalog.Domain/Catalog.Domain.csproj" />
   </Folder>
