@@ -1,16 +1,18 @@
 # ADR 0001: Use modular service boundaries
 
+**Status:** Accepted
+
 ## Context
 
-The platform contains identity, catalogue/orders, payments, notifications and file concerns. Their data ownership and failure modes differ, but the portfolio project must remain understandable and runnable.
+The implemented portfolio flow contains catalog, orders, payments, and shared primitives. It must remain runnable without coupling business rules to HTTP or temporary in-memory adapters.
 
 ## Decision
 
-Organise the code into explicit modules with Domain, Core, Contracts, Infrastructure and Web boundaries. Each module owns its data and exposes contracts rather than allowing other modules to access its persistence layer directly.
+Organise the current code into explicit domain, application, API, and shared modules. Application modules depend on interfaces for inventory, orders, payment gateways, and event publication. Future persistence adapters remain outside domain projects.
 
 ## Consequences
 
 - Business rules are easier to locate and test.
 - External dependencies remain at the infrastructure edge.
-- Cross-module workflows require contracts and asynchronous events, which adds coordination overhead.
-- The local demo must provide clear startup and tracing documentation.
+- Cross-module workflows require explicit interfaces and coordination.
+- Future persistence and event delivery can be added without moving domain rules into infrastructure projects.

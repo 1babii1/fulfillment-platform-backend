@@ -78,7 +78,7 @@ SharedKernel ────┘              │
 - `Payments.Application` depends on a gateway abstraction; this repository provides a demo adapter.
 - The API composes modules and translates expected failures into RFC 7807 problem details.
 
-Current adapters are intentionally in-memory. A production persistence adapter would use conditional database updates for stock and an outbox for durable event publication. The related records describe these boundaries without claiming unfinished components already exist.
+Current adapters are intentionally in-memory. PostgreSQL, concurrency-safe reservations, transactional Outbox, idempotency, and observability are planned evolution steps rather than present capabilities. See the [senior portfolio roadmap](docs/SENIOR_PORTFOLIO_ROADMAP.md) for their order and acceptance criteria.
 
 See the [architecture overview](docs/architecture/overview.md) and [ADRs](docs/adr/README.md).
 

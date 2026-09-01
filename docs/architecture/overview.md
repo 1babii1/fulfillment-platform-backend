@@ -2,88 +2,97 @@
 
 ## Purpose
 
-Fulfillment Platform Backend is a portfolio implementation of a commerce fulfilment backend. It focuses on the engineering concerns behind a reliable order lifecycle: domain boundaries, provider isolation, event delivery, testing and deployability.
+Fulfillment Platform Backend is a runnable portfolio case study for a single order-fulfilment workflow. It demonstrates domain boundaries, error handling, checkout compensation, provider abstraction, testing, and safe local delivery.
 
-The repository is a standalone demo environment. It does not represent or expose any production topology, credentials or external provider configuration.
+The repository is standalone. It contains no production topology, credentials, provider configuration, or real external integrations.
 
-## Component model
+## Implemented now
+
+### Component model
 
 ```mermaid
 flowchart LR
-    Client[Client] --> Identity[Identity]
-    Client --> CatalogOrders[Catalog + Orders]
-    CatalogOrders --> Payments[Payments]
-    CatalogOrders --> Files[Files]
-    CatalogOrders --> OrderDb[(Orders database)]
-    Identity --> IdentityDb[(Identity database)]
-    Payments --> PaymentsDb[(Payments database)]
-    Files --> FilesDb[(Files metadata database)]
-
-    CatalogOrders --> Outbox[Transactional Outbox]
-    Payments --> Outbox
-    Outbox --> Broker[Message broker]
-    Broker --> Notifications[Notifications]
-    Notifications --> NotificationsDb[(Notifications database)]
-
-    Payments --> PaymentGateway[IPaymentGateway]
-    CatalogOrders --> ShippingProvider[IShippingProvider]
-    Files --> ObjectStorage[IObjectStorage]
+    Client[HTTP client] --> Api[Fulfillment.Api]
+    Api --> Catalog[Catalog.Domain]
+    Api --> OrdersApp[Orders.Application]
+    OrdersApp --> Orders[Orders.Domain]
+    OrdersApp --> Inventory[In-memory inventory store]
+    OrdersApp --> OrderRepository[In-memory order repository]
+    Api --> Payments[Payments.Application]
+    Payments --> Gateway[Demo payment gateway]
+    Payments --> Events[In-memory event publisher]
+    Catalog --> Shared[SharedKernel]
+    Orders --> Shared
+    Payments --> Shared
 ```
 
-The solid service boundaries keep domain rules close to their owning module. Inter-service interaction happens through explicit contracts and events, rather than direct database access.
+`Fulfillment.Api` composes the modules. Domain projects do not depend on ASP.NET Core, Docker, Kubernetes, or a persistence library.
 
-## Order confirmation flow
+### Checkout and payment flow
 
 ```mermaid
 sequenceDiagram
     participant Client
-    participant Orders as Catalog + Orders
-    participant Db as Orders database
-    participant Payments
+    participant API as Fulfillment.Api
+    participant Checkout as CheckoutService
+    participant Inventory as In-memory inventory
+    participant Orders as In-memory orders
+    participant Payment as ConfirmOrderPaymentService
     participant Gateway as Demo payment gateway
-    participant Broker as Message broker
-    participant Notifications
+    participant Events as In-memory event publisher
 
-    Client->>Orders: Create order
-    Orders->>Db: Reserve stock + persist order + outbox event
-    Orders-->>Client: Order accepted
-    Orders->>Payments: Request payment
-    Payments->>Gateway: Confirm demo payment
-    Gateway-->>Payments: Payment confirmed
-    Payments->>Broker: Publish PaymentConfirmed
-    Broker->>Orders: Consume PaymentConfirmed idempotently
-    Orders->>Db: Mark order confirmed + persist outbox event
-    Broker->>Notifications: Consume OrderConfirmed
-    Notifications-->>Client: Demo notification
+    Client->>API: POST /api/demo/orders
+    API->>Checkout: Checkout(command)
+    Checkout->>Inventory: Reserve each order line
+    alt later reservation fails
+        Checkout->>Inventory: Release earlier reservations
+        Checkout-->>API: Validation or stock error
+    else all reservations succeed
+        Checkout->>Orders: Add pending order
+        Checkout-->>API: Created order
+    end
+    Client->>API: POST /orders/{id}/confirm-payment
+    API->>Payment: Confirm(id)
+    Payment->>Gateway: Confirm(order)
+    Gateway-->>Payment: Demo receipt
+    Payment->>Payment: Transition PendingPayment to Confirmed
+    Payment->>Events: Publish OrderConfirmedEvent
+    Payment-->>API: Payment receipt
 ```
 
-## Reliability controls
+The local demo uses process-memory adapters. Restarting the API resets catalog, orders, reservations, and events.
 
-| Concern | Design response |
-| --- | --- |
-| Database write and event publication | Transactional Outbox avoids losing an event after a successful state transition |
-| Repeated requests or deliveries | Idempotency keys and consumer-side deduplication make retries safe |
-| External providers | Interfaces isolate payment, shipping, notification and storage adapters from domain logic |
-| Critical flows | Integration tests exercise the same public flow as the local demo |
-| Operations | Health checks, structured logs, metrics and traces are designed as cross-cutting concerns |
+### Reliability controls that exist today
 
-## Delivery model
+| Concern | Current implementation | Evidence |
+| --- | --- | --- |
+| Input and domain validation | `Result`/`Error` values map to problem details | [API integration tests](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
+| Partial checkout failure | Earlier reservations are released when a later reservation fails | [checkout tests](../../tests/Orders/Orders.Application.Tests/CheckoutServiceTests.cs) |
+| Repeated payment confirmation | A non-pending order is rejected before the payment gateway is called | [payment tests](../../tests/Payments/Payments.Application.Tests/ConfirmOrderPaymentServiceTests.cs) |
+| Runtime health | `GET /health` is exposed by the API and container | [Program.cs](../../src/Api/Fulfillment.Api/Program.cs) |
+| Local runtime safety | Non-root container, health check, and no secrets in Compose | [Dockerfile](../../infra/docker/Dockerfile) |
 
-```mermaid
-flowchart LR
-    Dev[Developer] --> Compose[Docker Compose: local demo]
-    CI[CI quality gates] --> Image[Versioned container image]
-    Image --> Kustomize[Kustomize base + demo overlay]
-    Kustomize --> Argo[Argo CD]
-    Ansible[Ansible] --> K3s[k3s nodes]
-    Argo --> K3s
-```
+## Planned evolution
 
-Ansible is responsible for bootstrapping generic k3s nodes. Application manifests are managed declaratively after bootstrap. VM lifecycle automation is deliberately outside the initial scope; see the relevant ADR.
+The following items are design targets, not implemented capabilities. They are deferred until the preceding persistence and correctness work is complete.
 
-## Intentional limits of the portfolio version
+| Capability | Why it is needed | Roadmap stage |
+| --- | --- | --- |
+| PostgreSQL and EF Core | Durable orders and inventory state | [Stage 2](../SENIOR_PORTFOLIO_ROADMAP.md#stage-2--add-durable-postgresql-persistence) |
+| Concurrency-safe reservations | Prevent overselling under parallel checkout | [Stage 3](../SENIOR_PORTFOLIO_ROADMAP.md#stage-3--guarantee-inventory-correctness-under-concurrency) |
+| Transactional Outbox | Atomically record state changes and outgoing events | [Stage 4](../SENIOR_PORTFOLIO_ROADMAP.md#stage-4--implement-transactional-outbox) |
+| HTTP and consumer idempotency | Safely handle retries and repeated delivery | [Stage 5](../SENIOR_PORTFOLIO_ROADMAP.md#stage-5--add-request-and-consumer-idempotency) |
+| OpenTelemetry and dependency readiness | Diagnose failures and expose operational state | [Stage 6](../SENIOR_PORTFOLIO_ROADMAP.md#stage-6--add-operational-visibility) |
+| Kubernetes/Ansible hardening | Verify generic delivery examples more deeply | [Stage 7](../SENIOR_PORTFOLIO_ROADMAP.md#stage-7--harden-delivery-evidence) |
 
-- Demo adapters replace real external providers.
-- Local Docker Compose is the supported first-run path.
-- Kubernetes and Ansible assets are generic examples, not deployment instructions for a live system.
-- Autoscaling and multi-host availability are future evolution topics, not claims made by this repository.
+## Deliberate non-goals for the portfolio version
+
+- Authentication and user identity.
+- Shipping, notifications, file storage, and real payment-provider adapters.
+- A message broker or multi-service deployment.
+- A live Kubernetes cluster, GitOps controller, or VM lifecycle automation.
+- Autoscaling: an HPA should be added only after a measured workload supplies a justified metric.
+
+## Delivery examples
+
+Docker Compose is the supported first-run path. Kubernetes and Ansible files are generic examples for review and static validation only; they are not instructions for deploying this project to a live environment.
