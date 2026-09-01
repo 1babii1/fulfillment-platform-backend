@@ -3,6 +3,9 @@
   <Folder Name="/src/Catalog/">
     <Project Path="src/Catalog/Catalog.Domain/Catalog.Domain.csproj" />
   </Folder>
+  <Folder Name="/src/Orders/">
+    <Project Path="src/Orders/Orders.Domain/Orders.Domain.csproj" />
+  </Folder>
   <Folder Name="/src/Shared/">
     <Project Path="src/Shared/FractionalOrdering/FractionalOrdering.csproj" />
     <Project Path="src/Shared/SharedKernel/SharedKernel.csproj" />
@@ -10,6 +13,9 @@
   <Folder Name="/tests/" />
   <Folder Name="/tests/Catalog/">
     <Project Path="tests/Catalog/Catalog.Domain.Tests/Catalog.Domain.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Orders/">
+    <Project Path="tests/Orders/Orders.Domain.Tests/Orders.Domain.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/Shared/">
     <Project Path="tests/Shared/FractionalOrdering.Tests/FractionalOrdering.Tests.csproj" />
