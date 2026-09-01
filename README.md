@@ -26,6 +26,8 @@ Identity ──► Catalog + Orders ──► Payments / Shipping
 
 The first end-to-end demo flow will cover user registration, inventory reservation, order creation, demo payment confirmation and notification delivery.
 
+See the [architecture overview](docs/architecture/overview.md) for component, sequence and delivery diagrams.
+
 ## Planned components
 
 | Component | Responsibility |

@@ -2,11 +2,9 @@
 
 Each record will describe the context, decision, alternatives, consequences and follow-up work for a significant technical choice.
 
-Planned records:
-
-1. Modular service boundaries.
-2. Transactional Outbox and idempotent event handling.
-3. Provider abstractions and demo adapters.
-4. Kubernetes delivery with Kustomize and GitOps.
-5. Ansible for k3s node bootstrap.
-6. Deferring OpenTofu until VM lifecycle automation is needed.
+| ADR | Decision |
+| --- | --- |
+| [0001](0001-modular-service-boundaries.md) | Modular service boundaries |
+| [0002](0002-transactional-outbox-and-idempotency.md) | Transactional Outbox and idempotent handlers |
+| [0003](0003-provider-abstractions-and-demo-adapters.md) | Provider abstractions and demo adapters |
+| [0004](0004-delivery-boundaries.md) | Separate node bootstrap from application delivery |
