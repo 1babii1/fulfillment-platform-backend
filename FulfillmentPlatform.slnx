@@ -4,6 +4,7 @@
     <Project Path="src/Catalog/Catalog.Domain/Catalog.Domain.csproj" />
   </Folder>
   <Folder Name="/src/Orders/">
+    <Project Path="src/Orders/Orders.Application/Orders.Application.csproj" />
     <Project Path="src/Orders/Orders.Domain/Orders.Domain.csproj" />
   </Folder>
   <Folder Name="/src/Shared/">
@@ -15,6 +16,7 @@
     <Project Path="tests/Catalog/Catalog.Domain.Tests/Catalog.Domain.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/Orders/">
+    <Project Path="tests/Orders/Orders.Application.Tests/Orders.Application.Tests.csproj" />
     <Project Path="tests/Orders/Orders.Domain.Tests/Orders.Domain.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/Shared/">
