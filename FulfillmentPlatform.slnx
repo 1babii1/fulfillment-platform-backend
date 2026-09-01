@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/Shared/">
+    <Project Path="src/Shared/FractionalOrdering/FractionalOrdering.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/Shared/">
+    <Project Path="tests/Shared/FractionalOrdering.Tests/FractionalOrdering.Tests.csproj" />
+  </Folder>
+</Solution>
