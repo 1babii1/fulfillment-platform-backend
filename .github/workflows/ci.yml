@@ -23,6 +23,8 @@ jobs:
   container:
     name: Validate container build
     runs-on: ubuntu-24.04
+    env:
+      POSTGRES_PASSWORD: ci-placeholder-not-a-secret
     steps:
       - uses: actions/checkout@v4
       - run: docker compose config --quiet

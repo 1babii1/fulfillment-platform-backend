@@ -5,12 +5,18 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Fulfillment.Api.IntegrationTests;
 
-public sealed class DemoCheckoutFlowTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class DemoCheckoutFlowTests : IClassFixture<PostgresApiFixture>, IDisposable
 {
+    private readonly PostgresApiFixture _database;
+    private readonly WebApplicationFactory<Program> _factory;
     private readonly HttpClient _client;
 
-    public DemoCheckoutFlowTests(WebApplicationFactory<Program> factory) =>
-        _client = factory.CreateClient();
+    public DemoCheckoutFlowTests(PostgresApiFixture database)
+    {
+        _database = database;
+        _factory = database.CreateApi();
+        _client = _factory.CreateClient();
+    }
 
     [Fact]
     public async Task Catalog_ReturnsAvailableDemoItems()
@@ -61,5 +67,35 @@ public sealed class DemoCheckoutFlowTests : IClassFixture<WebApplicationFactory<
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         JsonElement problem = (await response.Content.ReadFromJsonAsync<JsonElement>())!;
         Assert.Equal("orders.lines.empty", problem.GetProperty("title").GetString());
+    }
+
+    [Fact]
+    public async Task Order_PersistsAcrossApiHostRestart()
+    {
+        JsonElement[] catalog = (await _client.GetFromJsonAsync<JsonElement[]>("/api/demo/catalog"))!;
+        Guid variantId = catalog[0].GetProperty("variantId").GetGuid();
+
+        HttpResponseMessage checkoutResponse = await _client.PostAsJsonAsync("/api/demo/orders", new
+        {
+            customerId = Guid.CreateVersion7(),
+            lines = new[] { new { variantId, quantity = 1 } }
+        });
+        JsonElement checkout = (await checkoutResponse.Content.ReadFromJsonAsync<JsonElement>())!;
+        Guid orderId = checkout.GetProperty("id").GetGuid();
+
+        _client.Dispose();
+        _factory.Dispose();
+        using WebApplicationFactory<Program> restartedApi = _database.CreateApi();
+        using HttpClient restartedClient = restartedApi.CreateClient();
+        JsonElement persistedOrder = (await restartedClient.GetFromJsonAsync<JsonElement>($"/api/demo/orders/{orderId}"))!;
+
+        Assert.Equal(orderId, persistedOrder.GetProperty("id").GetGuid());
+        Assert.Equal("PendingPayment", persistedOrder.GetProperty("status").GetString());
+    }
+
+    public void Dispose()
+    {
+        _client.Dispose();
+        _factory.Dispose();
     }
 }

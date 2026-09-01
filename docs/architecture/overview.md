@@ -16,8 +16,10 @@ flowchart LR
     Api --> Catalog[Catalog.Domain]
     Api --> OrdersApp[Orders.Application]
     OrdersApp --> Orders[Orders.Domain]
-    OrdersApp --> Inventory[In-memory inventory store]
-    OrdersApp --> OrderRepository[In-memory order repository]
+    OrdersApp --> Inventory[EF inventory store]
+    OrdersApp --> OrderRepository[EF order repository]
+    Inventory --> Database[(PostgreSQL)]
+    OrderRepository --> Database
     Api --> Payments[Payments.Application]
     Payments --> Gateway[Demo payment gateway]
     Payments --> Events[In-memory event publisher]
@@ -60,7 +62,7 @@ sequenceDiagram
     Payment-->>API: Payment receipt
 ```
 
-The local demo uses process-memory adapters. Restarting the API resets catalog, orders, reservations, and events.
+Orders, order lines, inventory, and reservations are persisted in PostgreSQL through EF Core migrations. The demo payment gateway and event publisher remain process-memory adapters, so restarting the API resets only published events.
 
 ### Reliability controls that exist today
 
@@ -68,6 +70,7 @@ The local demo uses process-memory adapters. Restarting the API resets catalog, 
 | --- | --- | --- |
 | Input and domain validation | `Result`/`Error` values map to problem details | [API integration tests](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
 | Partial checkout failure | Earlier reservations are released when a later reservation fails | [checkout tests](../../tests/Orders/Orders.Application.Tests/CheckoutServiceTests.cs) |
+| Durable state | Orders and inventory are mapped through EF Core migrations to PostgreSQL | [PostgreSQL integration tests](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
 | Repeated payment confirmation | A non-pending order is rejected before the payment gateway is called | [payment tests](../../tests/Payments/Payments.Application.Tests/ConfirmOrderPaymentServiceTests.cs) |
 | Runtime health | `GET /health` is exposed by the API and container | [Program.cs](../../src/Api/Fulfillment.Api/Program.cs) |
 | Local runtime safety | Non-root container, health check, and no secrets in Compose | [Dockerfile](../../infra/docker/Dockerfile) |
@@ -78,7 +81,6 @@ The following items are design targets, not implemented capabilities. They are d
 
 | Capability | Why it is needed | Roadmap stage |
 | --- | --- | --- |
-| PostgreSQL and EF Core | Durable orders and inventory state | [Stage 2](../SENIOR_PORTFOLIO_ROADMAP.md#stage-2--add-durable-postgresql-persistence) |
 | Concurrency-safe reservations | Prevent overselling under parallel checkout | [Stage 3](../SENIOR_PORTFOLIO_ROADMAP.md#stage-3--guarantee-inventory-correctness-under-concurrency) |
 | Transactional Outbox | Atomically record state changes and outgoing events | [Stage 4](../SENIOR_PORTFOLIO_ROADMAP.md#stage-4--implement-transactional-outbox) |
 | HTTP and consumer idempotency | Safely handle retries and repeated delivery | [Stage 5](../SENIOR_PORTFOLIO_ROADMAP.md#stage-5--add-request-and-consumer-idempotency) |

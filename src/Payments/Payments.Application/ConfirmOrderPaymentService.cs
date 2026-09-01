@@ -35,6 +35,7 @@ public sealed class ConfirmOrderPaymentService(
             return Result.Failure<PaymentReceipt>(confirmationResult.Error!);
         }
 
+        orders.Update(order);
         events.Publish(new OrderConfirmedEvent(order.Id, paymentResult.Value.Reference, paymentResult.Value.ConfirmedAt));
         return paymentResult;
     }

@@ -11,4 +11,6 @@ public sealed class InMemoryOrderRepository : IOrderRepository
     public void Add(Order order) => _orders.Add(order.Id, order);
 
     public Order? Find(Guid orderId) => _orders.GetValueOrDefault(orderId);
+
+    public void Update(Order order) => _orders[order.Id] = order;
 }

@@ -6,13 +6,13 @@ public sealed class Order
 {
     private readonly List<OrderLine> _lines;
 
-    private Order(Guid id, Guid customerId, List<OrderLine> lines)
+    private Order(Guid id, Guid customerId, OrderStatus status, DateTimeOffset createdAt, List<OrderLine> lines)
     {
         Id = id;
         CustomerId = customerId;
         _lines = lines;
-        Status = OrderStatus.PendingPayment;
-        CreatedAt = DateTimeOffset.UtcNow;
+        Status = status;
+        CreatedAt = createdAt;
     }
 
     public Guid Id { get; }
@@ -42,8 +42,16 @@ public sealed class Order
             return Result.Failure<Order>(OrderErrors.DuplicateVariant());
         }
 
-        return Result.Success(new Order(Guid.CreateVersion7(), customerId, lines.ToList()));
+        return Result.Success(new Order(Guid.CreateVersion7(), customerId, OrderStatus.PendingPayment, DateTimeOffset.UtcNow, lines.ToList()));
     }
+
+    public static Order Rehydrate(
+        Guid id,
+        Guid customerId,
+        OrderStatus status,
+        DateTimeOffset createdAt,
+        IReadOnlyCollection<OrderLine> lines) =>
+        new(id, customerId, status, createdAt, lines.ToList());
 
     public Result ConfirmPayment()
     {

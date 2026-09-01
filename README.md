@@ -19,23 +19,25 @@ It is small enough to review in one sitting, while keeping the boundaries and op
 GET catalog → POST order → reserve stock → confirm payment → publish order-confirmed event
 ```
 
-The API intentionally uses in-memory adapters and a demo payment gateway. It is therefore safe to run locally and contains no provider credentials or deployment topology.
+Orders and inventory are persisted in local PostgreSQL through EF Core migrations. Payment confirmation events and the payment gateway remain deterministic in-memory demo adapters, so the repository contains no provider credentials or deployment topology.
 
 | Area | Included |
 | --- | --- |
 | Domain | Catalog, stock reservation, order lifecycle, result/error primitives |
-| Application | Checkout compensation, repositories, payment confirmation, event publishing |
+| Application | Checkout compensation, PostgreSQL repositories, payment confirmation, event publishing |
 | API | Minimal API endpoints, problem-details errors, `/health` |
 | Quality | 51 unit and integration tests, compiler analysis, CI checks |
-| Delivery | Multi-stage Docker build, Compose, Kustomize, generic Ansible playbook |
+| Delivery | Multi-stage Docker build, PostgreSQL Compose environment, Kustomize, generic Ansible playbook |
 
 ## Quick start
 
 ### .NET SDK
 
 ```bash
+cp .env.example .env
 dotnet test FulfillmentPlatform.slnx
-dotnet run --project src/Api/Fulfillment.Api --urls http://localhost:8080
+docker compose up postgres --detach
+ConnectionStrings__FulfillmentDatabase='Host=localhost;Port=5432;Database=fulfillment;Username=fulfillment;Password=<your-local-password>' dotnet run --project src/Api/Fulfillment.Api --urls http://localhost:8080
 ```
 
 In another terminal:
@@ -48,11 +50,12 @@ curl http://localhost:8080/api/demo/catalog
 ### Docker Compose
 
 ```bash
+cp .env.example .env
 docker compose up --build
 curl http://localhost:8080/health
 ```
 
-Stop it with `docker compose down`. The demo has no persistent data, so restarting resets catalog, orders, and events.
+Stop it with `docker compose down`. PostgreSQL data is retained in a local volume; use `docker compose down --volumes` to reset the demo database. Events are intentionally in-memory until the Outbox stage.
 
 ## API walkthrough
 
@@ -78,7 +81,7 @@ SharedKernel ────┘              │
 - `Payments.Application` depends on a gateway abstraction; this repository provides a demo adapter.
 - The API composes modules and translates expected failures into RFC 7807 problem details.
 
-Current adapters are intentionally in-memory. PostgreSQL, concurrency-safe reservations, transactional Outbox, idempotency, and observability are planned evolution steps rather than present capabilities. See the [senior portfolio roadmap](docs/SENIOR_PORTFOLIO_ROADMAP.md) for their order and acceptance criteria.
+PostgreSQL persistence is implemented. Concurrency-safe reservations, transactional Outbox, idempotency, and observability remain planned evolution steps; see the [senior portfolio roadmap](docs/SENIOR_PORTFOLIO_ROADMAP.md) for their order and acceptance criteria.
 
 See the [architecture overview](docs/architecture/overview.md) and [ADRs](docs/adr/README.md).
 

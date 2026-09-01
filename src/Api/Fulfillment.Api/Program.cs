@@ -1,9 +1,12 @@
 using FulfillmentPlatform.Api;
+using FulfillmentPlatform.Catalog.Application;
 using FulfillmentPlatform.Catalog.Domain;
 using FulfillmentPlatform.Orders.Application;
 using FulfillmentPlatform.Orders.Domain;
 using FulfillmentPlatform.Payments.Application;
+using FulfillmentPlatform.Persistence;
 using FulfillmentPlatform.SharedKernel;
+using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -13,21 +16,25 @@ builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
-builder.Services.AddSingleton<DemoCatalog>();
-builder.Services.AddSingleton<IInventoryReservationStore>(serviceProvider =>
-{
-    DemoCatalog catalog = serviceProvider.GetRequiredService<DemoCatalog>();
-    return new InMemoryInventoryReservationStore(catalog.Stocks);
-});
-builder.Services.AddSingleton<InMemoryOrderRepository>();
-builder.Services.AddSingleton<IOrderRepository>(serviceProvider => serviceProvider.GetRequiredService<InMemoryOrderRepository>());
+string connectionString = builder.Configuration.GetConnectionString("FulfillmentDatabase")
+    ?? throw new InvalidOperationException("ConnectionStrings:FulfillmentDatabase must be configured.");
+
+builder.Services.AddDbContext<FulfillmentDbContext>(options => options.UseNpgsql(connectionString));
+builder.Services.AddScoped<ICatalogReadStore, EfCatalogReadStore>();
+builder.Services.AddScoped<IInventoryReservationStore, EfInventoryReservationStore>();
+builder.Services.AddScoped<IOrderRepository, EfOrderRepository>();
 builder.Services.AddSingleton<InMemoryOrderEventPublisher>();
 builder.Services.AddSingleton<IOrderEventPublisher>(serviceProvider => serviceProvider.GetRequiredService<InMemoryOrderEventPublisher>());
 builder.Services.AddSingleton<IPaymentGateway, DemoPaymentGateway>();
-builder.Services.AddSingleton<CheckoutService>();
-builder.Services.AddSingleton<ConfirmOrderPaymentService>();
+builder.Services.AddScoped<CheckoutService>();
+builder.Services.AddScoped<ConfirmOrderPaymentService>();
 
 WebApplication app = builder.Build();
+
+using (IServiceScope scope = app.Services.CreateScope())
+{
+    DatabaseInitializer.Initialize(scope.ServiceProvider.GetRequiredService<FulfillmentDbContext>());
+}
 
 app.UseExceptionHandler();
 app.MapOpenApi();
@@ -35,12 +42,12 @@ app.MapHealthChecks("/health").ExcludeFromDescription();
 
 RouteGroupBuilder demo = app.MapGroup("/api/demo").WithTags("Demo");
 
-demo.MapGet("/catalog", (DemoCatalog catalog) =>
-    Results.Ok(catalog.Items.Select(item => new CatalogItemResponse(
+demo.MapGet("/catalog", (ICatalogReadStore catalog) =>
+    Results.Ok(catalog.GetAvailableItems().Select(item => new CatalogItemResponse(
         item.VariantId,
         item.Sku,
         item.Name,
-        item.Stock.Available))));
+        item.Available))));
 
 demo.MapPost("/orders", (CreateOrderRequest request, CheckoutService checkout) =>
 {

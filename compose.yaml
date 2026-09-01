@@ -7,9 +7,30 @@ services:
       - "8080:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__FulfillmentDatabase: Host=postgres;Port=5432;Database=fulfillment;Username=fulfillment;Password=${POSTGRES_PASSWORD:?Create an untracked .env from .env.example}
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/health"]
       interval: 30s
       timeout: 3s
       start_period: 10s
       retries: 3
+
+  postgres:
+    image: postgres:17.5-alpine
+    environment:
+      POSTGRES_DB: fulfillment
+      POSTGRES_USER: fulfillment
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Create an untracked .env from .env.example}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username=fulfillment --dbname=fulfillment"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - fulfillment-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  fulfillment-postgres-data:

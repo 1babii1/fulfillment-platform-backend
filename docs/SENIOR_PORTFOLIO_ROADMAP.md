@@ -30,7 +30,7 @@ Main gap: persistence, Outbox, idempotency, brokers, and observability are descr
 6. Prefer one convincing implementation over several infrastructure placeholders.
 7. Every stage must keep `dotnet test FulfillmentPlatform.slnx` and the CI workflow green.
 
-## Stage 1 — Align documentation with reality
+## Stage 1 — Align documentation with reality ✓
 
 **Suggested issue:** `Make architecture documentation implementation-aware`
 
@@ -53,7 +53,7 @@ Acceptance criteria:
 
 **Team-lead signal:** technical honesty and control of scope.
 
-## Stage 2 — Add durable PostgreSQL persistence
+## Stage 2 — Add durable PostgreSQL persistence ✓
 
 **Suggested issue:** `Persist orders and inventory with PostgreSQL and EF Core`
 

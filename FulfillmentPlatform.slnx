@@ -4,6 +4,7 @@
     <Project Path="src/Api/Fulfillment.Api/Fulfillment.Api.csproj" />
   </Folder>
   <Folder Name="/src/Catalog/">
+    <Project Path="src/Catalog/Catalog.Application/Catalog.Application.csproj" />
     <Project Path="src/Catalog/Catalog.Domain/Catalog.Domain.csproj" />
   </Folder>
   <Folder Name="/src/Orders/">
@@ -12,6 +13,9 @@
   </Folder>
   <Folder Name="/src/Payments/">
     <Project Path="src/Payments/Payments.Application/Payments.Application.csproj" />
+  </Folder>
+  <Folder Name="/src/Persistence/">
+    <Project Path="src/Persistence/Fulfillment.Persistence/Fulfillment.Persistence.csproj" />
   </Folder>
   <Folder Name="/src/Shared/">
     <Project Path="src/Shared/FractionalOrdering/FractionalOrdering.csproj" />

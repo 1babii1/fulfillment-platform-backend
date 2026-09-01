@@ -7,4 +7,6 @@ public interface IOrderRepository
     void Add(Order order);
 
     Order? Find(Guid orderId);
+
+    void Update(Order order);
 }
