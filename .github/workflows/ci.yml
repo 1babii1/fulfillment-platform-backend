@@ -41,7 +41,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - if: "${{ hashFiles('infra/kubernetes/**') != '' }}"
-        run: kubectl kustomize infra/kubernetes > /dev/null
+        run: docker run --rm --volume "$PWD:/workspace:ro" --workdir /workspace registry.k8s.io/kustomize/kustomize:v5.7.1 build infra/kubernetes > /dev/null
 
   ansible:
     name: Validate Ansible playbooks

@@ -1,0 +1,22 @@
+---
+- name: Prepare a generic demo host
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    demo_packages:
+      - curl
+      - ca-certificates
+  tasks:
+    - name: Install packages required by the demo host
+      ansible.builtin.package:
+        name: "{{ demo_packages }}"
+        state: present
+
+    - name: Create the application working directory
+      ansible.builtin.file:
+        path: /opt/fulfillment-demo
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
