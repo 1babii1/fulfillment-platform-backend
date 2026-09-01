@@ -18,6 +18,9 @@
     <Project Path="src/Shared/SharedKernel/SharedKernel.csproj" />
   </Folder>
   <Folder Name="/tests/" />
+  <Folder Name="/tests/Api/">
+    <Project Path="tests/Api/Fulfillment.Api.IntegrationTests/Fulfillment.Api.IntegrationTests.csproj" />
+  </Folder>
   <Folder Name="/tests/Catalog/">
     <Project Path="tests/Catalog/Catalog.Domain.Tests/Catalog.Domain.Tests.csproj" />
   </Folder>
