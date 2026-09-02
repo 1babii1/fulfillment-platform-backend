@@ -30,6 +30,7 @@ builder.Services.AddHostedService<OutboxPublisher>();
 builder.Services.AddSingleton<IPaymentGateway, DemoPaymentGateway>();
 builder.Services.AddScoped<CheckoutService>();
 builder.Services.AddScoped<ConfirmOrderPaymentService>();
+builder.Services.AddScoped<IdempotencyExecutor>();
 
 WebApplication app = builder.Build();
 
@@ -51,16 +52,34 @@ demo.MapGet("/catalog", (ICatalogReadStore catalog) =>
         item.Name,
         item.Available))));
 
-demo.MapPost("/orders", (CreateOrderRequest request, CheckoutService checkout) =>
+demo.MapPost("/orders", (CreateOrderRequest request, HttpRequest httpRequest, CheckoutService checkout, IdempotencyExecutor idempotency) =>
 {
-    IReadOnlyCollection<OrderLine> lines = (request.Lines ?? [])
-        .Select(line => new OrderLine(line.VariantId, line.Quantity))
-        .ToArray();
-    Result<Order> result = checkout.Checkout(new CheckoutCommand(request.CustomerId, lines));
+    IdempotentHttpResponse HandleCheckout()
+    {
+        IReadOnlyCollection<OrderLine> lines = (request.Lines ?? [])
+            .Select(line => new OrderLine(line.VariantId, line.Quantity))
+            .ToArray();
+        Result<Order> result = checkout.Checkout(new CheckoutCommand(request.CustomerId, lines));
 
-    return result.IsSuccess
-        ? Results.Created($"/api/demo/orders/{result.Value.Id}", OrderResponse.From(result.Value))
-        : result.Error!.ToProblem();
+        return result.IsSuccess
+            ? new IdempotentHttpResponse(StatusCodes.Status201Created, OrderResponse.From(result.Value))
+            : new IdempotentHttpResponse(result.Error!.Type switch
+            {
+                ErrorType.Validation => StatusCodes.Status400BadRequest,
+                ErrorType.NotFound => StatusCodes.Status404NotFound,
+                ErrorType.Conflict => StatusCodes.Status409Conflict,
+                _ => StatusCodes.Status500InternalServerError
+            }, new ProblemResponse(result.Error.Code, result.Error.Description));
+    }
+
+    string? key = httpRequest.Headers["Idempotency-Key"].FirstOrDefault();
+    if (key is not null)
+    {
+        return idempotency.Execute("checkout", key, request, HandleCheckout);
+    }
+
+    IdempotentHttpResponse response = HandleCheckout();
+    return Results.Json(response.Body, statusCode: response.StatusCode);
 });
 
 demo.MapGet("/orders/{orderId:guid}", (Guid orderId, IOrderRepository orders) =>
@@ -71,13 +90,30 @@ demo.MapGet("/orders/{orderId:guid}", (Guid orderId, IOrderRepository orders) =>
         : Results.Ok(OrderResponse.From(order));
 });
 
-demo.MapPost("/orders/{orderId:guid}/confirm-payment", (Guid orderId, ConfirmOrderPaymentService payments) =>
+demo.MapPost("/orders/{orderId:guid}/confirm-payment", (Guid orderId, HttpRequest httpRequest, ConfirmOrderPaymentService payments, IdempotencyExecutor idempotency) =>
 {
-    Result<PaymentReceipt> result = payments.Confirm(orderId);
+    IdempotentHttpResponse HandleConfirmation()
+    {
+        Result<PaymentReceipt> result = payments.Confirm(orderId);
+        return result.IsSuccess
+            ? new IdempotentHttpResponse(StatusCodes.Status200OK, new PaymentResponse(result.Value.Reference, result.Value.ConfirmedAt))
+            : new IdempotentHttpResponse(result.Error!.Type switch
+            {
+                ErrorType.Validation => StatusCodes.Status400BadRequest,
+                ErrorType.NotFound => StatusCodes.Status404NotFound,
+                ErrorType.Conflict => StatusCodes.Status409Conflict,
+                _ => StatusCodes.Status500InternalServerError
+            }, new ProblemResponse(result.Error.Code, result.Error.Description));
+    }
 
-    return result.IsSuccess
-        ? Results.Ok(new PaymentResponse(result.Value.Reference, result.Value.ConfirmedAt))
-        : result.Error!.ToProblem();
+    string? key = httpRequest.Headers["Idempotency-Key"].FirstOrDefault();
+    if (key is not null)
+    {
+        return idempotency.Execute("payment-confirmation", key, new { orderId }, HandleConfirmation);
+    }
+
+    IdempotentHttpResponse response = HandleConfirmation();
+    return Results.Json(response.Body, statusCode: response.StatusCode);
 });
 
 demo.MapGet("/outbox", async (FulfillmentDbContext db, CancellationToken cancellationToken) =>

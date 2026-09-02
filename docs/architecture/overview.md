@@ -82,6 +82,7 @@ Orders, order lines, inventory, reservations, and Outbox messages are persisted 
 | Durable state | Orders and inventory are mapped through EF Core migrations to PostgreSQL | [PostgreSQL integration tests](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
 | Parallel checkout | PostgreSQL conditional updates prevent overselling across API instances | [concurrency test](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
 | Repeated payment confirmation | A non-pending order is rejected before the payment gateway is called | [payment tests](../../tests/Payments/Payments.Application.Tests/ConfirmOrderPaymentServiceTests.cs) |
+| HTTP retries | `Idempotency-Key` replays the original checkout or payment response; changed payloads are rejected | [idempotency tests](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
 | Event durability | Confirmed order state and Outbox message are saved in one transaction | [Outbox publisher](../../src/Persistence/Fulfillment.Persistence/EfOutboxEventPublisher.cs) |
 | Outbox delivery | Bounded background worker uses PostgreSQL `SKIP LOCKED`, attempts, and completion timestamps | [delivery test](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
 | Runtime health | `GET /health` is exposed by the API and container | [Program.cs](../../src/Api/Fulfillment.Api/Program.cs) |
@@ -93,7 +94,7 @@ The following items are design targets, not implemented capabilities. They are d
 
 | Capability | Why it is needed | Roadmap stage |
 | --- | --- | --- |
-| HTTP and consumer idempotency | Safely handle retries and repeated delivery | [Stage 5](../SENIOR_PORTFOLIO_ROADMAP.md#stage-5--add-request-and-consumer-idempotency) |
+| Consumer idempotency | Safely handle repeated broker delivery after a real transport is introduced | [Stage 5](../SENIOR_PORTFOLIO_ROADMAP.md#stage-5--add-request-and-consumer-idempotency) |
 | OpenTelemetry and dependency readiness | Diagnose failures and expose operational state | [Stage 6](../SENIOR_PORTFOLIO_ROADMAP.md#stage-6--add-operational-visibility) |
 | Kubernetes/Ansible hardening | Verify generic delivery examples more deeply | [Stage 7](../SENIOR_PORTFOLIO_ROADMAP.md#stage-7--harden-delivery-evidence) |
 

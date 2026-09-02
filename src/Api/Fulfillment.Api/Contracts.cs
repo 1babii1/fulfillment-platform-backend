@@ -28,6 +28,8 @@ public sealed record OrderResponse(Guid Id, Guid CustomerId, OrderStatus Status,
         new(order.Id, order.CustomerId, order.Status, order.Lines);
 }
 
+public sealed record ProblemResponse(string Title, string Detail);
+
 public static class ErrorHttpMapping
 {
     public static IResult ToProblem(this Error error) =>

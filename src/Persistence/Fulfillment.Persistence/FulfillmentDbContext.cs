@@ -12,6 +12,8 @@ public sealed class FulfillmentDbContext(DbContextOptions<FulfillmentDbContext> 
 
     public DbSet<OutboxMessageRecord> OutboxMessages => Set<OutboxMessageRecord>();
 
+    public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<InventoryRecord>(entity =>
@@ -75,6 +77,19 @@ public sealed class FulfillmentDbContext(DbContextOptions<FulfillmentDbContext> 
                 .WithMany()
                 .HasForeignKey(message => message.OrderId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<IdempotencyRecord>(entity =>
+        {
+            entity.ToTable("idempotency_records");
+            entity.HasKey(record => new { record.Operation, record.Key });
+            entity.Property(record => record.Operation).HasColumnName("operation").HasMaxLength(64);
+            entity.Property(record => record.Key).HasColumnName("key").HasMaxLength(128);
+            entity.Property(record => record.RequestHash).HasColumnName("request_hash").HasMaxLength(64).IsRequired();
+            entity.Property(record => record.Status).HasColumnName("status").HasMaxLength(32).IsRequired();
+            entity.Property(record => record.ResponseStatusCode).HasColumnName("response_status_code");
+            entity.Property(record => record.ResponseBody).HasColumnName("response_body").HasColumnType("jsonb");
+            entity.Property(record => record.CreatedAt).HasColumnName("created_at").IsRequired();
         });
     }
 }

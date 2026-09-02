@@ -57,3 +57,20 @@ public sealed class OutboxMessageRecord
 
     public string? LastError { get; set; }
 }
+
+public sealed class IdempotencyRecord
+{
+    public string Operation { get; set; } = string.Empty;
+
+    public string Key { get; set; } = string.Empty;
+
+    public string RequestHash { get; set; } = string.Empty;
+
+    public string Status { get; set; } = string.Empty;
+
+    public int? ResponseStatusCode { get; set; }
+
+    public string? ResponseBody { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+}

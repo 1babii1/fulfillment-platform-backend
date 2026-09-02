@@ -196,7 +196,136 @@ public sealed class DemoCheckoutFlowTests : IClassFixture<PostgresApiFixture>, I
         Assert.Contains(published, message => message.GetProperty("orderId").GetGuid() == orderId);
     }
 
+    [Fact]
+    public async Task Checkout_WithSameIdempotencyKey_ReturnsOriginalOrderWithoutSecondReservation()
+    {
+        JsonElement[] catalog = (await _client.GetFromJsonAsync<JsonElement[]>("/api/demo/catalog"))!;
+        JsonElement item = catalog[0];
+        Guid variantId = item.GetProperty("variantId").GetGuid();
+        int availableBefore = item.GetProperty("available").GetInt32();
+        Guid customerId = Guid.CreateVersion7();
+
+        using HttpRequestMessage firstRequest = CreateCheckoutRequest(customerId, variantId, 1, "checkout-retry-001");
+        using HttpResponseMessage firstResponse = await _client.SendAsync(firstRequest);
+        using HttpRequestMessage retryRequest = CreateCheckoutRequest(customerId, variantId, 1, "checkout-retry-001");
+        using HttpResponseMessage retryResponse = await _client.SendAsync(retryRequest);
+
+        JsonElement first = (await firstResponse.Content.ReadFromJsonAsync<JsonElement>())!;
+        JsonElement retry = (await retryResponse.Content.ReadFromJsonAsync<JsonElement>())!;
+        Assert.Equal(HttpStatusCode.Created, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, retryResponse.StatusCode);
+        Assert.Equal(first.GetProperty("id").GetGuid(), retry.GetProperty("id").GetGuid());
+
+        JsonElement[] after = (await _client.GetFromJsonAsync<JsonElement[]>("/api/demo/catalog"))!;
+        int availableAfter = after.Single(catalogItem => catalogItem.GetProperty("variantId").GetGuid() == variantId)
+            .GetProperty("available")
+            .GetInt32();
+        Assert.Equal(availableBefore - 1, availableAfter);
+    }
+
+    [Fact]
+    public async Task ConcurrentCheckout_WithSameIdempotencyKey_CreatesOneOrder()
+    {
+        JsonElement[] catalog = (await _client.GetFromJsonAsync<JsonElement[]>("/api/demo/catalog"))!;
+        JsonElement item = catalog[0];
+        Guid variantId = item.GetProperty("variantId").GetGuid();
+        int availableBefore = item.GetProperty("available").GetInt32();
+        Guid customerId = Guid.CreateVersion7();
+
+        Task<HttpResponseMessage>[] requests = Enumerable.Range(0, 4)
+            .Select(async _ =>
+            {
+                using HttpRequestMessage request = CreateCheckoutRequest(customerId, variantId, 1, "checkout-concurrent-001");
+                return await _client.SendAsync(request);
+            })
+            .ToArray();
+        HttpResponseMessage[] responses = await Task.WhenAll(requests);
+        Guid[] orderIds = [];
+        try
+        {
+            Assert.All(responses, response => Assert.Equal(HttpStatusCode.Created, response.StatusCode));
+            orderIds = (await Task.WhenAll(responses.Select(async response =>
+                (await response.Content.ReadFromJsonAsync<JsonElement>())!.GetProperty("id").GetGuid()))).ToArray();
+        }
+        finally
+        {
+            foreach (HttpResponseMessage response in responses)
+            {
+                response.Dispose();
+            }
+        }
+
+        Assert.Single(orderIds.Distinct());
+        JsonElement[] after = (await _client.GetFromJsonAsync<JsonElement[]>("/api/demo/catalog"))!;
+        int availableAfter = after.Single(catalogItem => catalogItem.GetProperty("variantId").GetGuid() == variantId)
+            .GetProperty("available")
+            .GetInt32();
+        Assert.Equal(availableBefore - 1, availableAfter);
+    }
+
+    [Fact]
+    public async Task Checkout_WithReusedIdempotencyKeyAndDifferentPayload_ReturnsConflict()
+    {
+        JsonElement[] catalog = (await _client.GetFromJsonAsync<JsonElement[]>("/api/demo/catalog"))!;
+        Guid variantId = catalog[0].GetProperty("variantId").GetGuid();
+        Guid customerId = Guid.CreateVersion7();
+
+        using HttpRequestMessage firstRequest = CreateCheckoutRequest(customerId, variantId, 1, "checkout-reuse-001");
+        using HttpResponseMessage firstResponse = await _client.SendAsync(firstRequest);
+        using HttpRequestMessage conflictingRequest = CreateCheckoutRequest(customerId, variantId, 2, "checkout-reuse-001");
+        using HttpResponseMessage conflictingResponse = await _client.SendAsync(conflictingRequest);
+
+        Assert.Equal(HttpStatusCode.Created, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, conflictingResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task PaymentConfirmation_WithSameIdempotencyKey_ReturnsOriginalReceipt()
+    {
+        Guid orderId = await CreateOrderAsync(_client);
+
+        using HttpRequestMessage firstRequest = CreatePaymentConfirmationRequest(orderId, "payment-retry-001");
+        using HttpResponseMessage firstResponse = await _client.SendAsync(firstRequest);
+        using HttpRequestMessage retryRequest = CreatePaymentConfirmationRequest(orderId, "payment-retry-001");
+        using HttpResponseMessage retryResponse = await _client.SendAsync(retryRequest);
+
+        JsonElement first = (await firstResponse.Content.ReadFromJsonAsync<JsonElement>())!;
+        JsonElement retry = (await retryResponse.Content.ReadFromJsonAsync<JsonElement>())!;
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, retryResponse.StatusCode);
+        Assert.Equal(first.GetProperty("reference").GetString(), retry.GetProperty("reference").GetString());
+    }
+
+    private static HttpRequestMessage CreateCheckoutRequest(Guid customerId, Guid variantId, int quantity, string idempotencyKey)
+    {
+        HttpRequestMessage request = new(HttpMethod.Post, "/api/demo/orders")
+        {
+            Content = JsonContent.Create(new
+            {
+                customerId,
+                lines = new[] { new { variantId, quantity } }
+            })
+        };
+        request.Headers.Add("Idempotency-Key", idempotencyKey);
+        return request;
+    }
+
+    private static HttpRequestMessage CreatePaymentConfirmationRequest(Guid orderId, string idempotencyKey)
+    {
+        HttpRequestMessage request = new(HttpMethod.Post, $"/api/demo/orders/{orderId}/confirm-payment");
+        request.Headers.Add("Idempotency-Key", idempotencyKey);
+        return request;
+    }
+
     private static async Task<Guid> CreateAndConfirmOrderAsync(HttpClient client)
+    {
+        Guid orderId = await CreateOrderAsync(client);
+        HttpResponseMessage paymentResponse = await client.PostAsync($"/api/demo/orders/{orderId}/confirm-payment", null);
+        Assert.Equal(HttpStatusCode.OK, paymentResponse.StatusCode);
+        return orderId;
+    }
+
+    private static async Task<Guid> CreateOrderAsync(HttpClient client)
     {
         JsonElement[] catalog = (await client.GetFromJsonAsync<JsonElement[]>("/api/demo/catalog"))!;
         HttpResponseMessage checkoutResponse = await client.PostAsJsonAsync("/api/demo/orders", new
@@ -206,9 +335,6 @@ public sealed class DemoCheckoutFlowTests : IClassFixture<PostgresApiFixture>, I
         });
         JsonElement checkout = (await checkoutResponse.Content.ReadFromJsonAsync<JsonElement>())!;
         Guid orderId = checkout.GetProperty("id").GetGuid();
-
-        HttpResponseMessage paymentResponse = await client.PostAsync($"/api/demo/orders/{orderId}/confirm-payment", null);
-        Assert.Equal(HttpStatusCode.OK, paymentResponse.StatusCode);
         return orderId;
     }
 

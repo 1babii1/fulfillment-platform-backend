@@ -12,7 +12,7 @@ Already implemented and verified:
 
 - .NET 10 modular backend with catalog, orders, payments, and shared primitives;
 - runnable HTTP flow from catalog lookup to order confirmation and event publication;
-- 56 passing unit and integration tests;
+- 60 passing unit and integration tests;
 - multi-stage non-root Docker image and local Compose environment;
 - CI checks for .NET, container build, GitHub Actions, Kustomize, and Ansible;
 - generic Kubernetes and Ansible examples without production data;

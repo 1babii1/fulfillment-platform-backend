@@ -14,6 +14,8 @@ The publisher locks one pending PostgreSQL row at a time with `FOR UPDATE SKIP L
 
 Consumers record or enforce idempotency for messages that can be retried. That consumer-side guarantee is deliberately deferred to Stage 5.
 
+HTTP endpoints already accept an operation-scoped `Idempotency-Key`. PostgreSQL stores a SHA-256 request fingerprint and the serialized response in the same transaction as the checkout or payment operation. An identical retry receives the original response; a changed request with the same key is rejected.
+
 ## Expected consequences
 
 - The order confirmation and the durable intent to publish cannot be committed separately.
