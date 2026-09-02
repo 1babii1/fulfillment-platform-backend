@@ -90,7 +90,7 @@ See the [architecture overview](docs/architecture/overview.md) and [ADRs](docs/a
 [`infra`](infra/README.md) contains generic examples, not instructions for a real environment:
 
 - [`infra/docker`](infra/docker/README.md) — multi-stage non-root container and Compose.
-- [`infra/kubernetes`](infra/kubernetes) — probes, resource limits, restrictive security context, `NetworkPolicy`, Kustomize.
+- [`infra/kubernetes`](infra/kubernetes) — probes, resource limits, restrictive security context, `NetworkPolicy`, PodDisruptionBudget, Kustomize.
 - [`infra/ansible`](infra/ansible/README.md) — inventory-free bootstrap example.
 
 No credentials, host addresses, inventories, kubeconfig, or provider configuration are included.

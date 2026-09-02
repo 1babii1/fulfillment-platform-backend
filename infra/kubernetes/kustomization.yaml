@@ -1,4 +1,5 @@
 resources:
   - deployment.yaml
+  - pod-disruption-budget.yaml
   - service.yaml
   - network-policy.yaml
