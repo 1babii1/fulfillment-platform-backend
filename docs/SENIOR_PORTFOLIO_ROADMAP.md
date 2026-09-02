@@ -78,7 +78,7 @@ Acceptance criteria:
 
 **Team-lead signal:** persistence boundaries, migrations, and realistic testing.
 
-## Stage 3 — Guarantee inventory correctness under concurrency
+## Stage 3 — Guarantee inventory correctness under concurrency ✓
 
 **Suggested issue:** `Make stock reservation concurrency-safe`
 
@@ -87,8 +87,8 @@ Acceptance criteria:
 Deliverables:
 
 - implement an atomic conditional reservation update or an explicitly documented locking strategy;
-- persist reservation identity and state rather than only aggregate counters;
-- define release, commit, expiry, and duplicate-operation behavior;
+- document the current aggregate-counter scope and defer reservation identity, expiry, and idempotency to later stages;
+- define release behavior for a failed multi-line checkout;
 - add concurrent integration tests with more demand than available stock;
 - document the selected isolation and locking trade-offs.
 

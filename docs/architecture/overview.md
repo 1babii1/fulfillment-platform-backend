@@ -71,6 +71,7 @@ Orders, order lines, inventory, and reservations are persisted in PostgreSQL thr
 | Input and domain validation | `Result`/`Error` values map to problem details | [API integration tests](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
 | Partial checkout failure | Earlier reservations are released when a later reservation fails | [checkout tests](../../tests/Orders/Orders.Application.Tests/CheckoutServiceTests.cs) |
 | Durable state | Orders and inventory are mapped through EF Core migrations to PostgreSQL | [PostgreSQL integration tests](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
+| Parallel checkout | PostgreSQL conditional updates prevent overselling across API instances | [concurrency test](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
 | Repeated payment confirmation | A non-pending order is rejected before the payment gateway is called | [payment tests](../../tests/Payments/Payments.Application.Tests/ConfirmOrderPaymentServiceTests.cs) |
 | Runtime health | `GET /health` is exposed by the API and container | [Program.cs](../../src/Api/Fulfillment.Api/Program.cs) |
 | Local runtime safety | Non-root container, health check, and no secrets in Compose | [Dockerfile](../../infra/docker/Dockerfile) |
@@ -81,7 +82,6 @@ The following items are design targets, not implemented capabilities. They are d
 
 | Capability | Why it is needed | Roadmap stage |
 | --- | --- | --- |
-| Concurrency-safe reservations | Prevent overselling under parallel checkout | [Stage 3](../SENIOR_PORTFOLIO_ROADMAP.md#stage-3--guarantee-inventory-correctness-under-concurrency) |
 | Transactional Outbox | Atomically record state changes and outgoing events | [Stage 4](../SENIOR_PORTFOLIO_ROADMAP.md#stage-4--implement-transactional-outbox) |
 | HTTP and consumer idempotency | Safely handle retries and repeated delivery | [Stage 5](../SENIOR_PORTFOLIO_ROADMAP.md#stage-5--add-request-and-consumer-idempotency) |
 | OpenTelemetry and dependency readiness | Diagnose failures and expose operational state | [Stage 6](../SENIOR_PORTFOLIO_ROADMAP.md#stage-6--add-operational-visibility) |
