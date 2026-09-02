@@ -21,14 +21,28 @@ jobs:
       - run: dotnet test FulfillmentPlatform.slnx --configuration Release --nologo --verbosity minimal
 
   container:
-    name: Validate container build
+    name: Build and smoke-test container
     runs-on: ubuntu-24.04
     env:
       POSTGRES_PASSWORD: ci-placeholder-not-a-secret
     steps:
       - uses: actions/checkout@v4
       - run: docker compose config --quiet
-      - run: docker compose build
+      - run: docker compose up --build --detach
+      - name: Wait for API readiness
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error http://localhost:8080/health/ready; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose logs
+          exit 1
+      - if: "${{ always() }}"
+        run: docker compose logs --no-color
+      - if: "${{ always() }}"
+        run: docker compose down --volumes --remove-orphans
 
   workflow-lint:
     name: Validate GitHub Actions workflow
@@ -38,12 +52,19 @@ jobs:
       - uses: rhysd/actionlint@v1.7.7
 
   kubernetes:
-    name: Render Kubernetes manifests
+    name: Validate Kubernetes manifests
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - if: "${{ hashFiles('infra/kubernetes/**') != '' }}"
-        run: docker run --rm --volume "$PWD:/workspace:ro" --workdir /workspace registry.k8s.io/kustomize/kustomize:v5.7.1 build infra/kubernetes > /dev/null
+        run: docker run --rm --volume "$PWD:/workspace:ro" --workdir /workspace registry.k8s.io/kustomize/kustomize:v5.7.1 build infra/kubernetes > rendered-manifests.yaml
+      - if: "${{ hashFiles('infra/kubernetes/**') != '' }}"
+        run: |
+          curl --fail --location --silent --show-error \
+            --output kubeconform.tar.gz \
+            https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz
+          tar --extract --gzip --file kubeconform.tar.gz kubeconform
+          ./kubeconform -strict -summary rendered-manifests.yaml
 
   ansible:
     name: Validate Ansible playbooks
