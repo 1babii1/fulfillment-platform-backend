@@ -71,20 +71,20 @@ sequenceDiagram
     Publisher->>Outbox: Record attempt and processed_at
 ```
 
-Orders, order lines, inventory, reservations, and Outbox messages are persisted in PostgreSQL through EF Core migrations. The demo payment gateway and transport remain process-memory adapters, but an order event is first stored durably and can be retried after a transport failure.
+Orders, order lines, inventory, reservations, idempotency records, and Outbox messages are persisted in PostgreSQL through EF Core migrations. The demo payment gateway and transport remain process-memory adapters, but an order event is first stored durably and can be retried after a transport failure without blocking later eligible messages.
 
 ### Reliability controls that exist today
 
 | Concern | Current implementation | Evidence |
 | --- | --- | --- |
-| Input and domain validation | `Result`/`Error` values map to problem details | [API integration tests](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
+| Input and domain validation | `Result`/`Error` values map to stable HTTP error responses | [API integration tests](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
 | Partial checkout failure | Earlier reservations are released when a later reservation fails | [checkout tests](../../tests/Orders/Orders.Application.Tests/CheckoutServiceTests.cs) |
 | Durable state | Orders and inventory are mapped through EF Core migrations to PostgreSQL | [PostgreSQL integration tests](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
 | Parallel checkout | PostgreSQL conditional updates prevent overselling across API instances | [concurrency test](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
 | Repeated payment confirmation | A non-pending order is rejected before the payment gateway is called | [payment tests](../../tests/Payments/Payments.Application.Tests/ConfirmOrderPaymentServiceTests.cs) |
 | HTTP retries | `Idempotency-Key` replays the original checkout or payment response; changed payloads are rejected | [idempotency tests](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
 | Event durability | Confirmed order state and Outbox message are saved in one transaction | [Outbox publisher](../../src/Persistence/Fulfillment.Persistence/EfOutboxEventPublisher.cs) |
-| Outbox delivery | Bounded background worker uses PostgreSQL `SKIP LOCKED`, attempts, and completion timestamps | [delivery test](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
+| Outbox delivery | Bounded background worker uses PostgreSQL `SKIP LOCKED`, attempts, completion timestamps, and scheduled retry | [delivery test](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
 | Telemetry | OpenTelemetry instruments HTTP, runtime, PostgreSQL source, and Outbox publishing; OTLP export is opt-in | [Program.cs](../../src/Api/Fulfillment.Api/Program.cs) |
 | Runtime health | `/health/live` checks process liveness; `/health/ready` checks PostgreSQL readiness | [Program.cs](../../src/Api/Fulfillment.Api/Program.cs) |
 | Local runtime safety | Non-root container, health check, and no secrets in Compose | [Dockerfile](../../infra/docker/Dockerfile) |

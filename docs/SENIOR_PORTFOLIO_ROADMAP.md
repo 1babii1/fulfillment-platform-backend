@@ -12,13 +12,13 @@ Already implemented and verified:
 
 - .NET 10 modular backend with catalog, orders, payments, and shared primitives;
 - runnable HTTP flow from catalog lookup to order confirmation and event publication;
-- 61 passing unit and integration tests;
+- 62 passing unit and integration tests;
 - multi-stage non-root Docker image and local Compose environment;
 - CI checks for .NET, container build, GitHub Actions, Kustomize, and Ansible;
 - generic Kubernetes and Ansible examples without production data;
 - architecture overview, ADRs, and reviewer-oriented README.
 
-Main gap: persistence, Outbox, idempotency, brokers, and observability are described as architectural decisions but are not yet implemented. Documentation must distinguish the current system from its planned evolution.
+Main gaps: consumer-side idempotency, a real message transport, a local telemetry collector, deployment hardening, and portfolio publication. The implemented HTTP idempotency, Outbox, and telemetry setup still need their remaining acceptance criteria completed before the related stages are marked done.
 
 ## Working rules
 

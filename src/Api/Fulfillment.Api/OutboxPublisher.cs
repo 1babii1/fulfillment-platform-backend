@@ -12,6 +12,7 @@ public sealed class OutboxPublisher(
     public const string ActivitySourceName = "FulfillmentPlatform.Outbox";
     private static readonly ActivitySource ActivitySource = new(ActivitySourceName);
     private static readonly TimeSpan IdleDelay = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan MaximumRetryDelay = TimeSpan.FromMinutes(1);
     private const int BatchSize = 20;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -42,7 +43,8 @@ public sealed class OutboxPublisher(
                     SELECT *
                     FROM outbox_messages
                     WHERE processed_at IS NULL
-                    ORDER BY occurred_at
+                      AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())
+                    ORDER BY next_attempt_at NULLS FIRST, occurred_at
                     LIMIT 1
                     FOR UPDATE SKIP LOCKED
                     """)
@@ -64,6 +66,7 @@ public sealed class OutboxPublisher(
                     new OutboxEnvelope(message.Id, message.OrderId, message.Type, message.Payload, message.OccurredAt),
                     cancellationToken);
                 message.ProcessedAt = DateTimeOffset.UtcNow;
+                message.NextAttemptAt = null;
                 activity?.SetStatus(ActivityStatusCode.Ok);
                 message.LastError = null;
                 await db.SaveChangesAsync(cancellationToken);
@@ -74,6 +77,7 @@ public sealed class OutboxPublisher(
             {
                 activity?.SetStatus(ActivityStatusCode.Error, "transport failure");
                 message.LastError = exception.Message[..Math.Min(exception.Message.Length, 2048)];
+                message.NextAttemptAt = DateTimeOffset.UtcNow.Add(GetRetryDelay(message.AttemptCount));
                 await db.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
                 logger.LogWarning(exception, "Outbox message {OutboxMessageId} publishing failed on attempt {AttemptCount}", message.Id, message.AttemptCount);
@@ -82,5 +86,11 @@ public sealed class OutboxPublisher(
         }
 
         return processed;
+    }
+
+    private static TimeSpan GetRetryDelay(int attemptCount)
+    {
+        int seconds = 1 << Math.Min(attemptCount - 1, 6);
+        return TimeSpan.FromSeconds(Math.Min(seconds, MaximumRetryDelay.TotalSeconds));
     }
 }

@@ -19,8 +19,7 @@ public sealed record OutboxMessageResponse(
     string Type,
     DateTimeOffset OccurredAt,
     DateTimeOffset? ProcessedAt,
-    int AttemptCount,
-    string? LastError);
+    int AttemptCount);
 
 public sealed record OrderResponse(Guid Id, Guid CustomerId, OrderStatus Status, IReadOnlyCollection<OrderLine> Lines)
 {

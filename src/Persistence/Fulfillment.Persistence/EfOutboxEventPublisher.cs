@@ -16,8 +16,5 @@ public sealed class EfOutboxEventPublisher(FulfillmentDbContext db) : IOrderEven
             OccurredAt = @event.OccurredAt,
             AttemptCount = 0
         });
-
-        // The tracked order status and this message are committed by one EF Core SaveChanges transaction.
-        db.SaveChanges();
     }
 }

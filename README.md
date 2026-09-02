@@ -10,7 +10,7 @@ It is small enough to review in one sitting, while keeping the boundaries and op
 - Domain rules are tested independently from HTTP and infrastructure concerns.
 - Integration tests exercise the real ASP.NET Core request pipeline.
 - The project runs locally with .NET or Docker Compose.
-- CI verifies tests, container build, workflow syntax, Kubernetes rendering, and Ansible linting.
+- CI verifies tests, a running Compose container, workflow syntax, Kubernetes schemas, and Ansible linting.
 - Infrastructure examples use secure defaults without exposing a real environment.
 
 ## What works today
@@ -19,14 +19,14 @@ It is small enough to review in one sitting, while keeping the boundaries and op
 GET catalog → POST order → reserve stock → confirm payment → publish order-confirmed event
 ```
 
-Orders and inventory are persisted in local PostgreSQL through EF Core migrations. Payment confirmation events and the payment gateway remain deterministic in-memory demo adapters, so the repository contains no provider credentials or deployment topology.
+Orders, inventory, idempotency records, and Outbox messages are persisted in local PostgreSQL through EF Core migrations. The payment gateway and final demo transport are deterministic in-memory adapters, so the repository contains no provider credentials or deployment topology.
 
 | Area | Included |
 | --- | --- |
 | Domain | Catalog, stock reservation, order lifecycle, result/error primitives |
 | Application | Checkout compensation, PostgreSQL repositories, payment confirmation, event publishing |
-| API | Minimal API endpoints, problem-details errors, `/health/live` and `/health/ready` |
-| Quality | 51 unit and integration tests, compiler analysis, CI checks |
+| API | Minimal API endpoints, structured errors, `/health/live` and `/health/ready` |
+| Quality | 62 unit and integration tests, compiler analysis, CI checks |
 | Delivery | Multi-stage Docker build, PostgreSQL Compose environment, Kustomize, generic Ansible playbook |
 
 ## Quick start
@@ -55,7 +55,7 @@ docker compose up --build
 curl http://localhost:8080/health/ready
 ```
 
-Stop it with `docker compose down`. PostgreSQL data is retained in a local volume; use `docker compose down --volumes` to reset the demo database. Events are intentionally in-memory until the Outbox stage.
+Stop it with `docker compose down`. PostgreSQL data is retained in a local volume; use `docker compose down --volumes` to reset the demo database. Events are recorded first in a transactional Outbox and then delivered through the in-memory demo transport.
 
 ## API walkthrough
 
@@ -79,9 +79,9 @@ SharedKernel ────┘              │
 - `Orders.Domain` owns valid transitions: `PendingPayment` → `Confirmed` or `Cancelled`.
 - `Orders.Application` compensates earlier reservations if a later line fails.
 - `Payments.Application` depends on a gateway abstraction; this repository provides a demo adapter.
-- The API composes modules and translates expected failures into RFC 7807 problem details.
+- The API composes modules and translates expected failures into stable HTTP error responses.
 
-PostgreSQL persistence is implemented. Concurrency-safe reservations, transactional Outbox, idempotency, and observability remain planned evolution steps; see the [senior portfolio roadmap](docs/SENIOR_PORTFOLIO_ROADMAP.md) for their order and acceptance criteria.
+PostgreSQL persistence, concurrency-safe reservations, transactional Outbox, HTTP idempotency, health checks, and opt-in OpenTelemetry are implemented. Consumer idempotency, a real transport, and a collector investigation guide remain planned evolution; see the [senior portfolio roadmap](docs/SENIOR_PORTFOLIO_ROADMAP.md).
 
 See the [architecture overview](docs/architecture/overview.md) and [ADRs](docs/adr/README.md).
 
@@ -107,11 +107,11 @@ infra/      Docker, Kubernetes and Ansible examples
 
 ## Interview discussion
 
-- Replacing in-memory reservations with concurrency-safe database updates.
-- When transactional outbox and idempotency become necessary.
+- Why checkout and payment confirmation use database transactions and row locking.
+- The boundary between HTTP idempotency, Outbox retry, and consumer idempotency.
 - Evolving the demo gateway into a real provider adapter.
 - Selecting Kubernetes probes, resource limits, and scaling metrics for actual traffic.
 
 ## License
 
-The license will be selected before the repository is made public.
+No license has been selected yet. Do not reuse the code until the repository owner chooses one.

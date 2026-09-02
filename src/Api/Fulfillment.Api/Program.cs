@@ -59,6 +59,8 @@ builder.Services.AddDbContext<FulfillmentDbContext>(options => options.UseNpgsql
 builder.Services.AddScoped<ICatalogReadStore, EfCatalogReadStore>();
 builder.Services.AddScoped<IInventoryReservationStore, EfInventoryReservationStore>();
 builder.Services.AddScoped<IOrderRepository, EfOrderRepository>();
+builder.Services.AddScoped<IOrderLockingExecutor, EfOrderLockingExecutor>();
+builder.Services.AddScoped<DatabaseTransactionExecutor>();
 builder.Services.AddScoped<IOrderEventPublisher, EfOutboxEventPublisher>();
 builder.Services.AddSingleton<InMemoryOutboxTransport>();
 builder.Services.AddSingleton<IOutboxTransport>(serviceProvider => serviceProvider.GetRequiredService<InMemoryOutboxTransport>());
@@ -95,7 +97,7 @@ demo.MapGet("/catalog", (ICatalogReadStore catalog) =>
         item.Name,
         item.Available))));
 
-demo.MapPost("/orders", (CreateOrderRequest request, HttpRequest httpRequest, CheckoutService checkout, IdempotencyExecutor idempotency) =>
+demo.MapPost("/orders", (CreateOrderRequest request, HttpRequest httpRequest, CheckoutService checkout, IdempotencyExecutor idempotency, DatabaseTransactionExecutor transactions) =>
 {
     IdempotentHttpResponse HandleCheckout()
     {
@@ -121,7 +123,7 @@ demo.MapPost("/orders", (CreateOrderRequest request, HttpRequest httpRequest, Ch
         return idempotency.Execute("checkout", key, request, HandleCheckout);
     }
 
-    IdempotentHttpResponse response = HandleCheckout();
+    IdempotentHttpResponse response = transactions.Execute(HandleCheckout, value => value.StatusCode < StatusCodes.Status400BadRequest);
     return Results.Json(response.Body, statusCode: response.StatusCode);
 });
 
@@ -169,8 +171,7 @@ demo.MapGet("/outbox", async (FulfillmentDbContext db, CancellationToken cancell
             message.Type,
             message.OccurredAt,
             message.ProcessedAt,
-            message.AttemptCount,
-            message.LastError))
+            message.AttemptCount))
         .ToArrayAsync(cancellationToken)));
 
 demo.MapGet("/events", (InMemoryOutboxTransport transport) =>
@@ -180,8 +181,7 @@ demo.MapGet("/events", (InMemoryOutboxTransport transport) =>
         message.Type,
         message.OccurredAt,
         ProcessedAt: null,
-        AttemptCount: 1,
-        LastError: null))));
+        AttemptCount: 1))));
 
 app.Run();
 

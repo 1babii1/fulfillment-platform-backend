@@ -70,9 +70,10 @@ public sealed class FulfillmentDbContext(DbContextOptions<FulfillmentDbContext> 
             entity.Property(message => message.Payload).HasColumnName("payload").HasColumnType("jsonb").IsRequired();
             entity.Property(message => message.OccurredAt).HasColumnName("occurred_at").IsRequired();
             entity.Property(message => message.ProcessedAt).HasColumnName("processed_at");
+            entity.Property(message => message.NextAttemptAt).HasColumnName("next_attempt_at");
             entity.Property(message => message.AttemptCount).HasColumnName("attempt_count").IsRequired();
             entity.Property(message => message.LastError).HasColumnName("last_error").HasMaxLength(2048);
-            entity.HasIndex(message => new { message.ProcessedAt, message.OccurredAt });
+            entity.HasIndex(message => new { message.ProcessedAt, message.NextAttemptAt, message.OccurredAt });
             entity.HasOne<OrderRecord>()
                 .WithMany()
                 .HasForeignKey(message => message.OrderId)

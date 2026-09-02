@@ -13,7 +13,7 @@ public sealed class ConfirmOrderPaymentServiceTests
     {
         (Order order, InMemoryOrderRepository orders) = CreatePendingOrder();
         InMemoryOrderEventPublisher events = new();
-        ConfirmOrderPaymentService service = new(orders, new DemoPaymentGateway(), events);
+        ConfirmOrderPaymentService service = new(new InMemoryOrderLockingExecutor(orders), new DemoPaymentGateway(), events);
 
         Result<PaymentReceipt> result = service.Confirm(order.Id);
 
@@ -29,7 +29,7 @@ public sealed class ConfirmOrderPaymentServiceTests
     {
         (Order order, InMemoryOrderRepository orders) = CreatePendingOrder();
         InMemoryOrderEventPublisher events = new();
-        ConfirmOrderPaymentService service = new(orders, new DemoPaymentGateway(shouldSucceed: false), events);
+        ConfirmOrderPaymentService service = new(new InMemoryOrderLockingExecutor(orders), new DemoPaymentGateway(shouldSucceed: false), events);
 
         Result<PaymentReceipt> result = service.Confirm(order.Id);
 
@@ -44,7 +44,7 @@ public sealed class ConfirmOrderPaymentServiceTests
         (Order order, InMemoryOrderRepository orders) = CreatePendingOrder();
         InMemoryOrderEventPublisher events = new();
         DemoPaymentGateway gateway = new();
-        ConfirmOrderPaymentService service = new(orders, gateway, events);
+        ConfirmOrderPaymentService service = new(new InMemoryOrderLockingExecutor(orders), gateway, events);
 
         Result<PaymentReceipt> first = service.Confirm(order.Id);
         Result<PaymentReceipt> second = service.Confirm(order.Id);
@@ -59,7 +59,7 @@ public sealed class ConfirmOrderPaymentServiceTests
     public void Confirm_WhenOrderDoesNotExist_ReturnsNotFound()
     {
         ConfirmOrderPaymentService service = new(
-            new InMemoryOrderRepository(),
+            new InMemoryOrderLockingExecutor(new InMemoryOrderRepository()),
             new DemoPaymentGateway(),
             new InMemoryOrderEventPublisher());
 

@@ -5,38 +5,39 @@ using FulfillmentPlatform.SharedKernel;
 namespace FulfillmentPlatform.Payments.Application;
 
 public sealed class ConfirmOrderPaymentService(
-    IOrderRepository orders,
+    IOrderLockingExecutor orderLock,
     IPaymentGateway paymentGateway,
     IOrderEventPublisher events)
 {
     public Result<PaymentReceipt> Confirm(Guid orderId)
     {
-        Order? order = orders.Find(orderId);
-        if (order is null)
+        return orderLock.Execute(orderId, order =>
         {
-            return Result.Failure<PaymentReceipt>(Error.NotFound("orders.order.not_found", "Order was not found."));
-        }
+            if (order is null)
+            {
+                return Result.Failure<PaymentReceipt>(Error.NotFound("orders.order.not_found", "Order was not found."));
+            }
 
-        if (order.Status != OrderStatus.PendingPayment)
-        {
-            return Result.Failure<PaymentReceipt>(
-                OrderErrors.InvalidTransition(order.Status, OrderStatus.Confirmed));
-        }
+            if (order.Status != OrderStatus.PendingPayment)
+            {
+                return Result.Failure<PaymentReceipt>(
+                    OrderErrors.InvalidTransition(order.Status, OrderStatus.Confirmed));
+            }
 
-        Result<PaymentReceipt> paymentResult = paymentGateway.Confirm(order);
-        if (paymentResult.IsFailure)
-        {
+            Result<PaymentReceipt> paymentResult = paymentGateway.Confirm(order);
+            if (paymentResult.IsFailure)
+            {
+                return paymentResult;
+            }
+
+            Result confirmationResult = order.ConfirmPayment();
+            if (confirmationResult.IsFailure)
+            {
+                return Result.Failure<PaymentReceipt>(confirmationResult.Error!);
+            }
+
+            events.Publish(new OrderConfirmedEvent(order.Id, paymentResult.Value.Reference, paymentResult.Value.ConfirmedAt));
             return paymentResult;
-        }
-
-        Result confirmationResult = order.ConfirmPayment();
-        if (confirmationResult.IsFailure)
-        {
-            return Result.Failure<PaymentReceipt>(confirmationResult.Error!);
-        }
-
-        orders.Update(order);
-        events.Publish(new OrderConfirmedEvent(order.Id, paymentResult.Value.Reference, paymentResult.Value.ConfirmedAt));
-        return paymentResult;
+        });
     }
 }

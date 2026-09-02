@@ -306,6 +306,36 @@ public sealed class DemoCheckoutFlowTests : IClassFixture<PostgresApiFixture>, I
         Assert.Equal(first.GetProperty("reference").GetString(), retry.GetProperty("reference").GetString());
     }
 
+    [Fact]
+    public async Task ConcurrentPaymentConfirmation_WithDifferentIdempotencyKeys_ConfirmsOnlyOnce()
+    {
+        Guid orderId = await CreateOrderAsync(_client);
+
+        Task<HttpResponseMessage>[] requests = Enumerable.Range(0, 6)
+            .Select(async index =>
+            {
+                using HttpRequestMessage request = CreatePaymentConfirmationRequest(orderId, $"payment-concurrent-{index}");
+                return await _client.SendAsync(request);
+            })
+            .ToArray();
+        HttpResponseMessage[] responses = await Task.WhenAll(requests);
+        try
+        {
+            Assert.Equal(1, responses.Count(response => response.StatusCode == HttpStatusCode.OK));
+            Assert.Equal(5, responses.Count(response => response.StatusCode == HttpStatusCode.Conflict));
+        }
+        finally
+        {
+            foreach (HttpResponseMessage response in responses)
+            {
+                response.Dispose();
+            }
+        }
+
+        JsonElement[] messages = (await _client.GetFromJsonAsync<JsonElement[]>("/api/demo/outbox"))!;
+        Assert.Single(messages, message => message.GetProperty("orderId").GetGuid() == orderId);
+    }
+
     private static HttpRequestMessage CreateCheckoutRequest(Guid customerId, Guid variantId, int quantity, string idempotencyKey)
     {
         HttpRequestMessage request = new(HttpMethod.Post, "/api/demo/orders")
