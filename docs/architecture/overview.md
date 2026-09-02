@@ -22,7 +22,11 @@ flowchart LR
     OrderRepository --> Database
     Api --> Payments[Payments.Application]
     Payments --> Gateway[Demo payment gateway]
-    Payments --> Events[In-memory event publisher]
+    Payments --> Outbox[EF transactional Outbox]
+    Outbox --> Database
+    Api --> Publisher[Background Outbox publisher]
+    Publisher --> Outbox
+    Publisher --> Transport[In-memory demo transport]
     Catalog --> Shared[SharedKernel]
     Orders --> Shared
     Payments --> Shared
@@ -37,11 +41,12 @@ sequenceDiagram
     participant Client
     participant API as Fulfillment.Api
     participant Checkout as CheckoutService
-    participant Inventory as In-memory inventory
-    participant Orders as In-memory orders
+    participant Inventory as EF inventory store
+    participant Orders as EF order repository
     participant Payment as ConfirmOrderPaymentService
     participant Gateway as Demo payment gateway
-    participant Events as In-memory event publisher
+    participant Outbox as Transactional Outbox
+    participant Publisher as Background publisher
 
     Client->>API: POST /api/demo/orders
     API->>Checkout: Checkout(command)
@@ -58,11 +63,15 @@ sequenceDiagram
     Payment->>Gateway: Confirm(order)
     Gateway-->>Payment: Demo receipt
     Payment->>Payment: Transition PendingPayment to Confirmed
-    Payment->>Events: Publish OrderConfirmedEvent
+    Payment->>Outbox: Store OrderConfirmedEvent with order state
+    Note over Payment,Outbox: One PostgreSQL transaction
     Payment-->>API: Payment receipt
+    Publisher->>Outbox: Lock pending message (SKIP LOCKED)
+    Publisher->>Publisher: Publish through demo transport
+    Publisher->>Outbox: Record attempt and processed_at
 ```
 
-Orders, order lines, inventory, and reservations are persisted in PostgreSQL through EF Core migrations. The demo payment gateway and event publisher remain process-memory adapters, so restarting the API resets only published events.
+Orders, order lines, inventory, reservations, and Outbox messages are persisted in PostgreSQL through EF Core migrations. The demo payment gateway and transport remain process-memory adapters, but an order event is first stored durably and can be retried after a transport failure.
 
 ### Reliability controls that exist today
 
@@ -73,6 +82,8 @@ Orders, order lines, inventory, and reservations are persisted in PostgreSQL thr
 | Durable state | Orders and inventory are mapped through EF Core migrations to PostgreSQL | [PostgreSQL integration tests](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
 | Parallel checkout | PostgreSQL conditional updates prevent overselling across API instances | [concurrency test](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
 | Repeated payment confirmation | A non-pending order is rejected before the payment gateway is called | [payment tests](../../tests/Payments/Payments.Application.Tests/ConfirmOrderPaymentServiceTests.cs) |
+| Event durability | Confirmed order state and Outbox message are saved in one transaction | [Outbox publisher](../../src/Persistence/Fulfillment.Persistence/EfOutboxEventPublisher.cs) |
+| Outbox delivery | Bounded background worker uses PostgreSQL `SKIP LOCKED`, attempts, and completion timestamps | [delivery test](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
 | Runtime health | `GET /health` is exposed by the API and container | [Program.cs](../../src/Api/Fulfillment.Api/Program.cs) |
 | Local runtime safety | Non-root container, health check, and no secrets in Compose | [Dockerfile](../../infra/docker/Dockerfile) |
 
@@ -82,7 +93,6 @@ The following items are design targets, not implemented capabilities. They are d
 
 | Capability | Why it is needed | Roadmap stage |
 | --- | --- | --- |
-| Transactional Outbox | Atomically record state changes and outgoing events | [Stage 4](../SENIOR_PORTFOLIO_ROADMAP.md#stage-4--implement-transactional-outbox) |
 | HTTP and consumer idempotency | Safely handle retries and repeated delivery | [Stage 5](../SENIOR_PORTFOLIO_ROADMAP.md#stage-5--add-request-and-consumer-idempotency) |
 | OpenTelemetry and dependency readiness | Diagnose failures and expose operational state | [Stage 6](../SENIOR_PORTFOLIO_ROADMAP.md#stage-6--add-operational-visibility) |
 | Kubernetes/Ansible hardening | Verify generic delivery examples more deeply | [Stage 7](../SENIOR_PORTFOLIO_ROADMAP.md#stage-7--harden-delivery-evidence) |

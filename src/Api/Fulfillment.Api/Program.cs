@@ -23,8 +23,10 @@ builder.Services.AddDbContext<FulfillmentDbContext>(options => options.UseNpgsql
 builder.Services.AddScoped<ICatalogReadStore, EfCatalogReadStore>();
 builder.Services.AddScoped<IInventoryReservationStore, EfInventoryReservationStore>();
 builder.Services.AddScoped<IOrderRepository, EfOrderRepository>();
-builder.Services.AddSingleton<InMemoryOrderEventPublisher>();
-builder.Services.AddSingleton<IOrderEventPublisher>(serviceProvider => serviceProvider.GetRequiredService<InMemoryOrderEventPublisher>());
+builder.Services.AddScoped<IOrderEventPublisher, EfOutboxEventPublisher>();
+builder.Services.AddSingleton<InMemoryOutboxTransport>();
+builder.Services.AddSingleton<IOutboxTransport>(serviceProvider => serviceProvider.GetRequiredService<InMemoryOutboxTransport>());
+builder.Services.AddHostedService<OutboxPublisher>();
 builder.Services.AddSingleton<IPaymentGateway, DemoPaymentGateway>();
 builder.Services.AddScoped<CheckoutService>();
 builder.Services.AddScoped<ConfirmOrderPaymentService>();
@@ -78,11 +80,29 @@ demo.MapPost("/orders/{orderId:guid}/confirm-payment", (Guid orderId, ConfirmOrd
         : result.Error!.ToProblem();
 });
 
-demo.MapGet("/events", (InMemoryOrderEventPublisher events) =>
-    Results.Ok(events.Events.Select(@event => new OrderConfirmedEventResponse(
-        @event.OrderId,
-        @event.PaymentReference,
-        @event.OccurredAt))));
+demo.MapGet("/outbox", async (FulfillmentDbContext db, CancellationToken cancellationToken) =>
+    Results.Ok(await db.OutboxMessages
+        .AsNoTracking()
+        .OrderBy(message => message.OccurredAt)
+        .Select(message => new OutboxMessageResponse(
+            message.Id,
+            message.OrderId,
+            message.Type,
+            message.OccurredAt,
+            message.ProcessedAt,
+            message.AttemptCount,
+            message.LastError))
+        .ToArrayAsync(cancellationToken)));
+
+demo.MapGet("/events", (InMemoryOutboxTransport transport) =>
+    Results.Ok(transport.Published.Select(message => new OutboxMessageResponse(
+        message.Id,
+        message.OrderId,
+        message.Type,
+        message.OccurredAt,
+        ProcessedAt: null,
+        AttemptCount: 1,
+        LastError: null))));
 
 app.Run();
 

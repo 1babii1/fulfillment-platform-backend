@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\..\Orders\Orders.Domain\Orders.Domain.csproj" />
     <ProjectReference Include="..\..\Orders\Orders.Application\Orders.Application.csproj" />
     <ProjectReference Include="..\..\Shared\SharedKernel\SharedKernel.csproj" />

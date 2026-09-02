@@ -13,6 +13,15 @@ public sealed record PaymentResponse(string Reference, DateTimeOffset ConfirmedA
 
 public sealed record OrderConfirmedEventResponse(Guid OrderId, string PaymentReference, DateTimeOffset OccurredAt);
 
+public sealed record OutboxMessageResponse(
+    Guid Id,
+    Guid OrderId,
+    string Type,
+    DateTimeOffset OccurredAt,
+    DateTimeOffset? ProcessedAt,
+    int AttemptCount,
+    string? LastError);
+
 public sealed record OrderResponse(Guid Id, Guid CustomerId, OrderStatus Status, IReadOnlyCollection<OrderLine> Lines)
 {
     public static OrderResponse From(Order order) =>

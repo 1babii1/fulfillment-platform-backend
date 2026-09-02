@@ -16,8 +16,19 @@ public sealed class PostgresApiFixture : IAsyncLifetime
 
     public async Task DisposeAsync() => await _database.DisposeAsync();
 
-    public WebApplicationFactory<Program> CreateApi() =>
+    public WebApplicationFactory<Program> CreateApi(IReadOnlyDictionary<string, string?>? settings = null) =>
         new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
-                builder.UseSetting("ConnectionStrings:FulfillmentDatabase", _database.GetConnectionString()));
+            {
+                builder.UseSetting("ConnectionStrings:FulfillmentDatabase", _database.GetConnectionString());
+                if (settings is null)
+                {
+                    return;
+                }
+
+                foreach ((string key, string? value) in settings)
+                {
+                    builder.UseSetting(key, value);
+                }
+            });
 }

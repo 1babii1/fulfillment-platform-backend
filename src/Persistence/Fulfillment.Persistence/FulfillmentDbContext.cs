@@ -10,6 +10,8 @@ public sealed class FulfillmentDbContext(DbContextOptions<FulfillmentDbContext> 
 
     public DbSet<OrderLineRecord> OrderLines => Set<OrderLineRecord>();
 
+    public DbSet<OutboxMessageRecord> OutboxMessages => Set<OutboxMessageRecord>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<InventoryRecord>(entity =>
@@ -54,6 +56,25 @@ public sealed class FulfillmentDbContext(DbContextOptions<FulfillmentDbContext> 
             entity.Property(line => line.Quantity).HasColumnName("quantity");
             entity.Property(line => line.Quantity).IsRequired();
             entity.HasIndex(line => new { line.OrderId, line.VariantId }).IsUnique();
+        });
+
+        modelBuilder.Entity<OutboxMessageRecord>(entity =>
+        {
+            entity.ToTable("outbox_messages");
+            entity.HasKey(message => message.Id);
+            entity.Property(message => message.Id).HasColumnName("id");
+            entity.Property(message => message.OrderId).HasColumnName("order_id");
+            entity.Property(message => message.Type).HasColumnName("type").HasMaxLength(256).IsRequired();
+            entity.Property(message => message.Payload).HasColumnName("payload").HasColumnType("jsonb").IsRequired();
+            entity.Property(message => message.OccurredAt).HasColumnName("occurred_at").IsRequired();
+            entity.Property(message => message.ProcessedAt).HasColumnName("processed_at");
+            entity.Property(message => message.AttemptCount).HasColumnName("attempt_count").IsRequired();
+            entity.Property(message => message.LastError).HasColumnName("last_error").HasMaxLength(2048);
+            entity.HasIndex(message => new { message.ProcessedAt, message.OccurredAt });
+            entity.HasOne<OrderRecord>()
+                .WithMany()
+                .HasForeignKey(message => message.OrderId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

@@ -12,7 +12,7 @@ Already implemented and verified:
 
 - .NET 10 modular backend with catalog, orders, payments, and shared primitives;
 - runnable HTTP flow from catalog lookup to order confirmation and event publication;
-- 51 passing unit and integration tests;
+- 56 passing unit and integration tests;
 - multi-stage non-root Docker image and local Compose environment;
 - CI checks for .NET, container build, GitHub Actions, Kustomize, and Ansible;
 - generic Kubernetes and Ansible examples without production data;
@@ -101,7 +101,7 @@ Acceptance criteria:
 
 **Team-lead signal:** understanding of race conditions and database guarantees.
 
-## Stage 4 — Implement transactional Outbox
+## Stage 4 — Implement transactional Outbox ✓
 
 **Suggested issue:** `Publish order events through a transactional Outbox`
 
@@ -117,10 +117,10 @@ Deliverables:
 
 Acceptance criteria:
 
-- a simulated publication failure leaves a pending Outbox record without losing the order change;
+- a transport failure leaves a pending Outbox record without losing the order change;
 - retry publishes the pending record and marks it processed;
-- the same message is not published concurrently by two workers;
-- transaction and failure-path integration tests pass with PostgreSQL.
+- the same message is not published concurrently by two workers through PostgreSQL row locking;
+- transaction and delivery integration tests pass with PostgreSQL.
 
 **Team-lead signal:** reliable distributed workflow design grounded in working code.
 

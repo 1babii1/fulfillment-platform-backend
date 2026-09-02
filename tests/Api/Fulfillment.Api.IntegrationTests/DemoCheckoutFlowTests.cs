@@ -29,7 +29,7 @@ public sealed class DemoCheckoutFlowTests : IClassFixture<PostgresApiFixture>, I
     }
 
     [Fact]
-    public async Task CheckoutAndPaymentConfirmation_ConfirmOrderAndPublishEvent()
+    public async Task CheckoutAndPaymentConfirmation_ConfirmsOrderAndStoresDurableEvent()
     {
         JsonElement[] catalog = (await _client.GetFromJsonAsync<JsonElement[]>("/api/demo/catalog"))!;
         Guid variantId = catalog[0].GetProperty("variantId").GetGuid();
@@ -51,8 +51,8 @@ public sealed class DemoCheckoutFlowTests : IClassFixture<PostgresApiFixture>, I
         JsonElement order = (await _client.GetFromJsonAsync<JsonElement>($"/api/demo/orders/{orderId}"))!;
         Assert.Equal("Confirmed", order.GetProperty("status").GetString());
 
-        JsonElement[] events = (await _client.GetFromJsonAsync<JsonElement[]>("/api/demo/events"))!;
-        Assert.Contains(events, @event => @event.GetProperty("orderId").GetGuid() == orderId);
+        JsonElement[] messages = (await _client.GetFromJsonAsync<JsonElement[]>("/api/demo/outbox"))!;
+        Assert.Contains(messages, message => message.GetProperty("orderId").GetGuid() == orderId);
     }
 
     [Fact]
@@ -156,6 +156,76 @@ public sealed class DemoCheckoutFlowTests : IClassFixture<PostgresApiFixture>, I
             .GetInt32();
 
         Assert.Equal(availableBeforeCheckout, availableAfterCheckout);
+    }
+
+    [Fact]
+    public async Task PaymentConfirmation_PersistsAnOutboxMessage()
+    {
+        JsonElement[] catalog = (await _client.GetFromJsonAsync<JsonElement[]>("/api/demo/catalog"))!;
+        Guid variantId = catalog[0].GetProperty("variantId").GetGuid();
+        HttpResponseMessage checkoutResponse = await _client.PostAsJsonAsync("/api/demo/orders", new
+        {
+            customerId = Guid.CreateVersion7(),
+            lines = new[] { new { variantId, quantity = 1 } }
+        });
+        JsonElement checkout = (await checkoutResponse.Content.ReadFromJsonAsync<JsonElement>())!;
+        Guid orderId = checkout.GetProperty("id").GetGuid();
+
+        HttpResponseMessage paymentResponse = await _client.PostAsync($"/api/demo/orders/{orderId}/confirm-payment", null);
+        Assert.Equal(HttpStatusCode.OK, paymentResponse.StatusCode);
+
+        HttpResponseMessage outboxResponse = await _client.GetAsync("/api/demo/outbox");
+        Assert.Equal(HttpStatusCode.OK, outboxResponse.StatusCode);
+        JsonElement[] messages = (await outboxResponse.Content.ReadFromJsonAsync<JsonElement[]>())!;
+        Assert.Contains(messages, message => message.GetProperty("orderId").GetGuid() == orderId);
+    }
+
+    [Fact]
+    public async Task OutboxPublisher_DeliversMessageAndMarksItProcessed()
+    {
+        Guid orderId = await CreateAndConfirmOrderAsync(_client);
+
+        JsonElement[] messages = await WaitForOutboxAsync(
+            _client,
+            values => values.Any(message =>
+                message.GetProperty("orderId").GetGuid() == orderId &&
+                message.GetProperty("processedAt").ValueKind == JsonValueKind.String));
+
+        Assert.Contains(messages, message => message.GetProperty("orderId").GetGuid() == orderId);
+        JsonElement[] published = (await _client.GetFromJsonAsync<JsonElement[]>("/api/demo/events"))!;
+        Assert.Contains(published, message => message.GetProperty("orderId").GetGuid() == orderId);
+    }
+
+    private static async Task<Guid> CreateAndConfirmOrderAsync(HttpClient client)
+    {
+        JsonElement[] catalog = (await client.GetFromJsonAsync<JsonElement[]>("/api/demo/catalog"))!;
+        HttpResponseMessage checkoutResponse = await client.PostAsJsonAsync("/api/demo/orders", new
+        {
+            customerId = Guid.CreateVersion7(),
+            lines = new[] { new { variantId = catalog[0].GetProperty("variantId").GetGuid(), quantity = 1 } }
+        });
+        JsonElement checkout = (await checkoutResponse.Content.ReadFromJsonAsync<JsonElement>())!;
+        Guid orderId = checkout.GetProperty("id").GetGuid();
+
+        HttpResponseMessage paymentResponse = await client.PostAsync($"/api/demo/orders/{orderId}/confirm-payment", null);
+        Assert.Equal(HttpStatusCode.OK, paymentResponse.StatusCode);
+        return orderId;
+    }
+
+    private static async Task<JsonElement[]> WaitForOutboxAsync(HttpClient client, Func<JsonElement[], bool> condition)
+    {
+        for (int attempt = 0; attempt < 30; attempt++)
+        {
+            JsonElement[] messages = (await client.GetFromJsonAsync<JsonElement[]>("/api/demo/outbox"))!;
+            if (condition(messages))
+            {
+                return messages;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(100));
+        }
+
+        return (await client.GetFromJsonAsync<JsonElement[]>("/api/demo/outbox"))!;
     }
 
     public void Dispose()

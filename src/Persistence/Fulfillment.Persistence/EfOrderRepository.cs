@@ -42,7 +42,6 @@ public sealed class EfOrderRepository(FulfillmentDbContext db) : IOrderRepositor
         }
 
         record.Status = order.Status;
-        db.SaveChanges();
     }
 
     private static Order ToDomain(OrderRecord record) =>
