@@ -7,13 +7,15 @@ using FulfillmentPlatform.Payments.Application;
 using FulfillmentPlatform.Persistence;
 using FulfillmentPlatform.SharedKernel;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using System.Text.Json.Serialization;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<FulfillmentDbContext>("postgres", tags: ["ready"]);
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
 string connectionString = builder.Configuration.GetConnectionString("FulfillmentDatabase")
@@ -41,7 +43,14 @@ using (IServiceScope scope = app.Services.CreateScope())
 
 app.UseExceptionHandler();
 app.MapOpenApi();
-app.MapHealthChecks("/health").ExcludeFromDescription();
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false
+}).ExcludeFromDescription();
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+}).ExcludeFromDescription();
 
 RouteGroupBuilder demo = app.MapGroup("/api/demo").WithTags("Demo");
 

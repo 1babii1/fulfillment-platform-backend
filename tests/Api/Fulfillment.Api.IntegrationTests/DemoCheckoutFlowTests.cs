@@ -29,6 +29,16 @@ public sealed class DemoCheckoutFlowTests : IClassFixture<PostgresApiFixture>, I
     }
 
     [Fact]
+    public async Task HealthEndpoints_ReportLiveProcessAndReadyDatabase()
+    {
+        using HttpResponseMessage liveness = await _client.GetAsync("/health/live");
+        using HttpResponseMessage readiness = await _client.GetAsync("/health/ready");
+
+        Assert.Equal(HttpStatusCode.OK, liveness.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, readiness.StatusCode);
+    }
+
+    [Fact]
     public async Task CheckoutAndPaymentConfirmation_ConfirmsOrderAndStoresDurableEvent()
     {
         JsonElement[] catalog = (await _client.GetFromJsonAsync<JsonElement[]>("/api/demo/catalog"))!;

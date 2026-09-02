@@ -11,7 +11,7 @@ docker compose up --build
 The API is available at `http://localhost:8080`. Verify the running container with:
 
 ```bash
-curl --fail http://localhost:8080/health
+curl --fail http://localhost:8080/health/ready
 curl http://localhost:8080/api/demo/catalog
 ```
 

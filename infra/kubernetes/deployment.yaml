@@ -39,17 +39,17 @@ spec:
               memory: 256Mi
           startupProbe:
             httpGet:
-              path: /health
+              path: /health/live
               port: http
             failureThreshold: 30
             periodSeconds: 5
           readinessProbe:
             httpGet:
-              path: /health
+              path: /health/ready
               port: http
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /health
+              path: /health/live
               port: http
             periodSeconds: 20

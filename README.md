@@ -25,7 +25,7 @@ Orders and inventory are persisted in local PostgreSQL through EF Core migration
 | --- | --- |
 | Domain | Catalog, stock reservation, order lifecycle, result/error primitives |
 | Application | Checkout compensation, PostgreSQL repositories, payment confirmation, event publishing |
-| API | Minimal API endpoints, problem-details errors, `/health` |
+| API | Minimal API endpoints, problem-details errors, `/health/live` and `/health/ready` |
 | Quality | 51 unit and integration tests, compiler analysis, CI checks |
 | Delivery | Multi-stage Docker build, PostgreSQL Compose environment, Kustomize, generic Ansible playbook |
 
@@ -43,7 +43,7 @@ ConnectionStrings__FulfillmentDatabase='Host=localhost;Port=5432;Database=fulfil
 In another terminal:
 
 ```bash
-curl http://localhost:8080/health
+curl http://localhost:8080/health/ready
 curl http://localhost:8080/api/demo/catalog
 ```
 
@@ -52,7 +52,7 @@ curl http://localhost:8080/api/demo/catalog
 ```bash
 cp .env.example .env
 docker compose up --build
-curl http://localhost:8080/health
+curl http://localhost:8080/health/ready
 ```
 
 Stop it with `docker compose down`. PostgreSQL data is retained in a local volume; use `docker compose down --volumes` to reset the demo database. Events are intentionally in-memory until the Outbox stage.

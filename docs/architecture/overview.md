@@ -85,7 +85,7 @@ Orders, order lines, inventory, reservations, and Outbox messages are persisted 
 | HTTP retries | `Idempotency-Key` replays the original checkout or payment response; changed payloads are rejected | [idempotency tests](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
 | Event durability | Confirmed order state and Outbox message are saved in one transaction | [Outbox publisher](../../src/Persistence/Fulfillment.Persistence/EfOutboxEventPublisher.cs) |
 | Outbox delivery | Bounded background worker uses PostgreSQL `SKIP LOCKED`, attempts, and completion timestamps | [delivery test](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
-| Runtime health | `GET /health` is exposed by the API and container | [Program.cs](../../src/Api/Fulfillment.Api/Program.cs) |
+| Runtime health | `/health/live` checks process liveness; `/health/ready` checks PostgreSQL readiness | [Program.cs](../../src/Api/Fulfillment.Api/Program.cs) |
 | Local runtime safety | Non-root container, health check, and no secrets in Compose | [Dockerfile](../../infra/docker/Dockerfile) |
 
 ## Planned evolution
