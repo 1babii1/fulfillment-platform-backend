@@ -8,6 +8,10 @@ using FulfillmentPlatform.Persistence;
 using FulfillmentPlatform.SharedKernel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using System.Text.Json.Serialization;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -17,6 +21,36 @@ builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<FulfillmentDbContext>("postgres", tags: ["ready"]);
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+
+bool hasOtlpExporter = !string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService("fulfillment-platform-backend"))
+    .WithTracing(tracing =>
+    {
+        tracing.AddAspNetCoreInstrumentation(options => options.Filter = context =>
+                !context.Request.Path.StartsWithSegments("/health"))
+            .AddSource("Npgsql")
+            .AddSource(OutboxPublisher.ActivitySourceName);
+        if (hasOtlpExporter)
+        {
+            tracing.AddOtlpExporter();
+        }
+    })
+    .WithMetrics(metrics =>
+    {
+        metrics.AddAspNetCoreInstrumentation().AddRuntimeInstrumentation();
+        if (hasOtlpExporter)
+        {
+            metrics.AddOtlpExporter();
+        }
+    })
+    .WithLogging(logging =>
+    {
+        if (hasOtlpExporter)
+        {
+            logging.AddOtlpExporter();
+        }
+    });
 
 string connectionString = builder.Configuration.GetConnectionString("FulfillmentDatabase")
     ?? throw new InvalidOperationException("ConnectionStrings:FulfillmentDatabase must be configured.");

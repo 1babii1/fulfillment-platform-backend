@@ -85,6 +85,7 @@ Orders, order lines, inventory, reservations, and Outbox messages are persisted 
 | HTTP retries | `Idempotency-Key` replays the original checkout or payment response; changed payloads are rejected | [idempotency tests](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
 | Event durability | Confirmed order state and Outbox message are saved in one transaction | [Outbox publisher](../../src/Persistence/Fulfillment.Persistence/EfOutboxEventPublisher.cs) |
 | Outbox delivery | Bounded background worker uses PostgreSQL `SKIP LOCKED`, attempts, and completion timestamps | [delivery test](../../tests/Api/Fulfillment.Api.IntegrationTests/DemoCheckoutFlowTests.cs) |
+| Telemetry | OpenTelemetry instruments HTTP, runtime, PostgreSQL source, and Outbox publishing; OTLP export is opt-in | [Program.cs](../../src/Api/Fulfillment.Api/Program.cs) |
 | Runtime health | `/health/live` checks process liveness; `/health/ready` checks PostgreSQL readiness | [Program.cs](../../src/Api/Fulfillment.Api/Program.cs) |
 | Local runtime safety | Non-root container, health check, and no secrets in Compose | [Dockerfile](../../infra/docker/Dockerfile) |
 
@@ -95,7 +96,7 @@ The following items are design targets, not implemented capabilities. They are d
 | Capability | Why it is needed | Roadmap stage |
 | --- | --- | --- |
 | Consumer idempotency | Safely handle repeated broker delivery after a real transport is introduced | [Stage 5](../SENIOR_PORTFOLIO_ROADMAP.md#stage-5--add-request-and-consumer-idempotency) |
-| OpenTelemetry and dependency readiness | Diagnose failures and expose operational state | [Stage 6](../SENIOR_PORTFOLIO_ROADMAP.md#stage-6--add-operational-visibility) |
+| Collector deployment and trace investigation guide | Export and interpret telemetry in a chosen backend | [Stage 6](../SENIOR_PORTFOLIO_ROADMAP.md#stage-6--add-operational-visibility) |
 | Kubernetes/Ansible hardening | Verify generic delivery examples more deeply | [Stage 7](../SENIOR_PORTFOLIO_ROADMAP.md#stage-7--harden-delivery-evidence) |
 
 ## Deliberate non-goals for the portfolio version

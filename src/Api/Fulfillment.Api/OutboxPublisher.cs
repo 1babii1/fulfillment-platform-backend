@@ -1,6 +1,7 @@
 using FulfillmentPlatform.Payments.Application;
 using FulfillmentPlatform.Persistence;
 using Microsoft.EntityFrameworkCore;
+using System.Diagnostics;
 
 namespace FulfillmentPlatform.Api;
 
@@ -8,6 +9,8 @@ public sealed class OutboxPublisher(
     IServiceScopeFactory scopeFactory,
     ILogger<OutboxPublisher> logger) : BackgroundService
 {
+    public const string ActivitySourceName = "FulfillmentPlatform.Outbox";
+    private static readonly ActivitySource ActivitySource = new(ActivitySourceName);
     private static readonly TimeSpan IdleDelay = TimeSpan.FromMilliseconds(250);
     private const int BatchSize = 20;
 
@@ -52,12 +55,16 @@ public sealed class OutboxPublisher(
             }
 
             message.AttemptCount++;
+            using Activity? activity = ActivitySource.StartActivity("outbox.publish");
+            activity?.SetTag("outbox.message_type", message.Type);
+            activity?.SetTag("outbox.attempt", message.AttemptCount);
             try
             {
                 await transport.PublishAsync(
                     new OutboxEnvelope(message.Id, message.OrderId, message.Type, message.Payload, message.OccurredAt),
                     cancellationToken);
                 message.ProcessedAt = DateTimeOffset.UtcNow;
+                activity?.SetStatus(ActivityStatusCode.Ok);
                 message.LastError = null;
                 await db.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
@@ -65,6 +72,7 @@ public sealed class OutboxPublisher(
             }
             catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
             {
+                activity?.SetStatus(ActivityStatusCode.Error, "transport failure");
                 message.LastError = exception.Message[..Math.Min(exception.Message.Length, 2048)];
                 await db.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
